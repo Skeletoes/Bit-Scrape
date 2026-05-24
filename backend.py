@@ -73,6 +73,18 @@ def login():
             return redirect(url_for('home'))
     return render_template('login.html')
 
+@app.route('/accountCreate', methods=['POST', 'GET'])
+def accountCreate():
+    if request.method == 'POST':
+        if not request.method['username'].strip() or not request.form['password'].strip() or not request.form['email'].strip():
+            return render_template('accountCreate.html', error='All fields are required')
+        usernameInput = request.form['username']
+        passwordInput = request.form['password']
+        emailInput = request.form['email']
+    return render_template('accountCreate.html')
+
+
+
 @app.route('/home')
 def home():
     return render_template('home.html')
