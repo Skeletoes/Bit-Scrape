@@ -12,8 +12,8 @@ def databaseControl(query, data, function, table):
     # 'table' = what table will be effected
     dbConnection = sqlite3.connect('database.db')
     dbCursor = dbConnection.cursor()
-    if function == 'add':
-        if table == 'user':
+    if function == 'add': # If data needs to be added to the database
+        if table == 'user': # If the user wants to create an account
             # Using try and except to handle errors and easier to diagnose the errors
             try:
                 # Execute the query to add a user
@@ -22,14 +22,17 @@ def databaseControl(query, data, function, table):
                 dbConnection.commit()
             except Exception as e:
                 print(f"An error occured at function=databaseControl while trying to 'add' a 'user' to the database. {e}")
-    elif function == 'retrieve':
-        if table == 'user':
+    # If data needs to be retrieved from the database
+    elif function == 'retrieve': 
+        # If the user wants to login
+        if table == 'user': 
             try:
-                dbCursor.execute(query, (data[0], data[1],))
+                # Executes the query to retrieve all the 'user' data associated with the credentials provided.
+                dbCursor.execute(query, (data[0], data[1],)) 
                 userData = dbCursor.fetchall()
-                if len(userData) == 0:
-                    return redirect(url_for('index'))
-                return userData
+                dbConnection.close()
+                # Sends the retrieved data back to the login function
+                return userData 
             except Exception as e:
                 print(f"An error has occured at function=databaseControl while trying to 'retrieve' data from 'user' table. {e}")
     
@@ -41,16 +44,33 @@ def index():
     session.clear()
     return redirect(url_for('login'))
 
-
+# Must use 'POST' and 'GET' because 'GET' is required for the url redirection from index to login
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
+        # Create the list of data for the 'databaseControl' function
         dataList = []
+        # Fetch the data from the form and add it to the 'dataList'
         dataList.append(request.form['username'])
         dataList.append(request.form['password'])
+
+        # Prepare the query for the 'databaseControl' function
         query = """SELECT * FROM user WHERE userName = ? AND userPassword = ?;"""
-        userData = databaseControl(query, dataList, 'retrieve', 'user')
-        return redirect(url_for('home'))
+        # Create a variable from the data send from the 'databaseControl' function
+        data = databaseControl(query, dataList, 'retrieve', 'user')
+        # Create a list variable, 'userData', from the dictionary 'data'
+        userData = data[0]
+
+        # Check if there was anything actually returned from the 'databaseControl' function to confirm if user login credentials were correct
+        # If the 'databaseControl' function returned nothing then redirect back to 'index' so login process may begin again
+        if len(data) == 0:
+            return redirect(url_for('index'))
+        # If the 'databaseControl' function did return data then login succeeded
+        else:
+            # Create important session variables to use throughout the code
+            session['UserID'] = userData[0]
+            session['UserEmail'] = userData[3]
+            return redirect(url_for('home'))
     return render_template('login.html')
 
 @app.route('/home')
