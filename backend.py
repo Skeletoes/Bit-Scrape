@@ -25,11 +25,11 @@ def databaseControl(query, data, function, table):
     elif function == 'retrieve':
         if table == 'user':
             try:
-                userData = dbCursor.execute(query, (data[0], data[1]))
-                session['userID'] = userData[0]
-                session['userName'] = userData[1]
-                session['userEmail'] = userData[3]
-                return url_for('/home')
+                dbCursor.execute(query, (data[0], data[1],))
+                userData = dbCursor.fetchall()
+                if len(userData) == 0:
+                    return redirect(url_for('index'))
+                return userData
             except Exception as e:
                 print(f"An error has occured at function=databaseControl while trying to 'retrieve' data from 'user' table. {e}")
     
@@ -42,17 +42,20 @@ def index():
     return redirect(url_for('login'))
 
 
-@app.route('/login', methods=['POST'])
+@app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
+        dataList = []
+        dataList.append(request.form['username'])
+        dataList.append(request.form['password'])
         query = """SELECT * FROM user WHERE userName = ? AND userPassword = ?;"""
-        databaseControl(query, )
+        userData = databaseControl(query, dataList, 'retrieve', 'user')
+        return redirect(url_for('home'))
     return render_template('login.html')
 
 @app.route('/home')
 def home():
+    return render_template('home.html')
 
     
 
