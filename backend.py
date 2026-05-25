@@ -17,7 +17,7 @@ def databaseControl(query, data, function, table):
             # Using try and except to handle errors and easier to diagnose the errors
             try:
                 # Execute the query to add a user
-                dbCursor.execute(query, (data[0], data[1], data[2], data[3]))
+                dbCursor.execute(query, (data[0], data[1], data[2],))
                 # Commit to save the data
                 dbConnection.commit()
             except Exception as e:
@@ -76,8 +76,23 @@ def login():
 @app.route('/accountCreate', methods=['POST', 'GET'])
 def accountCreate():
     if request.method == 'POST':
-        if not request.method['username'].strip() or not request.form['password'].strip() or not request.form['email'].strip():
-            return render_template('accountCreate.html', error='All fields are required')
+        usernameInput = request.form['username']
+        passwordInput = request.form['password']
+        emailInput = request.form['email']
+        if len(usernameInput) and len(passwordInput) and len(emailInput) > 5 and len(usernameInput) and len(passwordInput) and len(emailInput) < 20:
+            query = """SELECT * FROM user WHERE userName = ?;"""
+            dataList = []
+            dataList.append(usernameInput)
+            usernameExist = databaseControl(query, dataList, 'retrieve', 'user')
+            if len(usernameExist) > 0:
+                return render_template('accountCreate.html', error='Username already used. Maybe sign-in?')
+            elif len(usernameExist) < 1:
+                del dataList
+                query = """SELECT * FROM user WHERE userEmail = ?;"""
+                dataList = []
+                dataList.append(emailInput)
+                emailExist = databaseControl(query, dataList, 'retrieve', 'user')
+            
         usernameInput = request.form['username']
         passwordInput = request.form['password']
         emailInput = request.form['email']
