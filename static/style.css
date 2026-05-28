@@ -1,6 +1,10 @@
 body {
-    width: 10vw;
-    height: 15vw;
-    overflow: auto;
+    width: 400px;
+    min-width: 400px;
+    max-width: 400px;
+    height: 580px;
+    min-height: 580px;
+    max-height: 580px;
+    overflow: hidden;
 }
 

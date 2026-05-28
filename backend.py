@@ -1,17 +1,26 @@
 from flask import Flask, render_template, session, redirect, url_for, request, flash
-from flaskwebgui import FlaskUI
 import sqlite3
+import webview
+from threading import Thread
 
 app = Flask(__name__)
 app.secret_key = "qa567-KLu8T-ZgD45-9sdfg-1234"
 
+# The all in one database access/control function that will handle all the web apps database needs
 def db(query, params=()):
+    # Create the connection to the database file
     conn = sqlite3.connect('database.db')
+    # Create the cursor which will handle queries
     cursor = conn.cursor()
+    # Execute the query and use the parameters
     cursor.execute(query, params)
+    # Always commit changes even if there are not any
     conn.commit()
+    # Store the data that was fetched from the database as 'results'
     results = cursor.fetchall()
+    # Always close connection when done with the function
     conn.close()
+    # Return the data
     return results
 
 
@@ -33,6 +42,7 @@ def login():
         if not userData:
             flash('Credentials are incorrect')
         else:
+            # If the user credentials are correct then redirect the user to home
             return redirect(url_for('home'))
     return render_template('login.html')
 
@@ -67,5 +77,26 @@ def home():
     return render_template('home.html')
 
 
+def run_flask():
+    app.run(port=8000)
+
 if __name__ == '__main__':
-    FlaskUI(app=app, server="flask", width=800, height=480, port=8000).run()
+    # Create the variable 't' so the flask app runs on a seperate thread
+    t = Thread(target=run_flask)
+    # Set 't.daemon' to true so that when the webview window is closed then the flask app is ended too
+    t.daemon = True
+    # Start the flask app in the background and then the code beneath this can run at the same time
+    t.start()
+    
+    # Define the webview configuration
+    window = webview.create_window(
+        'Bit Scrape',
+        'http://127.0.0.1:8000',
+        # Set the fixed size for the application window
+        width=400,
+        height=580,
+        # Set resizable to false so that the window can not be resized at all
+        resizable=False
+    )
+    # Start the application window
+    webview.start()
