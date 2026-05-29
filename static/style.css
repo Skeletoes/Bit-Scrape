@@ -6,5 +6,9 @@ body {
     min-height: 580px;
     max-height: 580px;
     overflow: hidden;
+    background-image: url('/static/images/bitscrapeBackground.gif');
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-attachment: fixed;
 }
-
