@@ -11,4 +11,117 @@ body {
     background-repeat: no-repeat;
     background-position: center;
     background-attachment: fixed;
+    margin: 0;
+    padding: 0;
+}
+
+footer {
+  text-align: center;
+  padding: 3px;
+  background-color: DarkSalmon;
+  color: white;
+}
+
+.logo-background {
+    position: fixed;
+    top: 5px;
+    left: 5px;
+    width: 100px;
+    height: 50px;
+    background-color: #000000;
+    clip-path: polygon(5% 0%, 95% 0%, 70% 25%, 35% 25%);
+    z-index: 10;
+}
+
+.navbar ul {
+  list-style-type: none;
+  margin: 0;
+  padding-right: 12px;
+  overflow: hidden;
+  background-color: #333333;
+}
+
+.navbar ul li {
+  float: right;
+}
+
+.navbar ul li a {
+  display: block;
+  color: white;
+  text-align: center;
+  padding: 14px 16px;
+  text-decoration: none;
+}
+
+.navbar ul li a:hover {
+  background-color: #111111;
+}
+
+.login-box {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(30, 140, 255, 0.75);
+    padding: 30px 28px;
+    width: 300px;
+}
+
+.login-box form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.login-box input[type="text"],
+.login-box input[type="password"] {
+    width: 100%;
+    padding: 16px;
+    font-size: 18px;
+    border: none;
+    background-color: white;
+    color: #333;
+    text-align: center;
+    box-sizing: border-box;
+    outline: none;
+}
+
+.login-box input[type="text"]::placeholder,
+.login-box input[type="password"]::placeholder {
+    color: #999;
+}
+
+.login-box input[type="submit"] {
+    width: 100%;
+    padding: 16px;
+    font-size: 20px;
+    font-weight: bold;
+    background-color: #6a0dad;
+    color: white;
+    border: none;
+    cursor: pointer;
+    box-sizing: border-box;
+}
+
+.login-box input[type="submit"]:hover {
+    background-color: #7b1fc7;
+}
+
+.create-row {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.create-btn {
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: bold;
+    background-color: rgba(100, 160, 255, 0.6);
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+
+.create-btn:hover {
+    background-color: rgba(100, 160, 255, 0.9);
 }
