@@ -13,13 +13,18 @@ body {
     background-attachment: fixed;
     margin: 0;
     padding: 0;
+    position: relative;
 }
 
 footer {
-  text-align: center;
-  padding: 3px;
-  background-color: DarkSalmon;
-  color: white;
+    text-align: center;
+    padding: 3px;
+    background-color: DarkSalmon;
+    color: white;
+    position: absolute;
+    bottom: 15px;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .logo-background {
@@ -34,51 +39,60 @@ footer {
 }
 
 .navbar ul {
-  list-style-type: none;
-  margin: 0;
-  padding-right: 12px;
-  overflow: hidden;
-  background-color: #333333;
+    list-style-type: none;
+    margin: 0;
+    padding-right: 12px;
+    overflow: hidden;
+    background-color: transparent;
 }
 
 .navbar ul li {
-  float: right;
+    float: right;
 }
 
 .navbar ul li a {
-  display: block;
-  color: white;
-  text-align: center;
-  padding: 14px 16px;
-  text-decoration: none;
+    display: block;
+    color: white;
+    text-align: center;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: bold;
+    text-decoration: none;
+    background-color: rgba(80, 150, 255, 0.55);
+    border-radius: 3px;
+    margin: 6px 6px 0 0;
 }
 
 .navbar ul li a:hover {
-  background-color: #111111;
+    background-color: rgba(80, 150, 255, 0.85);
 }
 
 .login-box {
     position: absolute;
-    top: 50%;
+    top: 45%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background-color: rgba(30, 140, 255, 0.75);
-    padding: 30px 28px;
-    width: 300px;
+    background-color: rgba(30, 140, 255, 0.82);
+    padding: 28px 24px;
+    width: 310px;
+    border-radius: 4px;
+    box-sizing: border-box;
 }
 
 .login-box form {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
 }
 
 .login-box input[type="text"],
-.login-box input[type="password"] {
+.login-box input[type="password"],
+.login-box input[type="email"] {
     width: 100%;
-    padding: 16px;
-    font-size: 18px;
+    padding: 15px;
+    font-size: 17px;
     border: none;
+    border-radius: 3px;
     background-color: white;
     color: #333;
     text-align: center;
@@ -87,24 +101,27 @@ footer {
 }
 
 .login-box input[type="text"]::placeholder,
-.login-box input[type="password"]::placeholder {
-    color: #999;
+.login-box input[type="password"]::placeholder,
+.login-box input[type="email"]::placeholder {
+    color: #aaa;
 }
 
 .login-box input[type="submit"] {
     width: 100%;
-    padding: 16px;
-    font-size: 20px;
+    padding: 15px;
+    font-size: 19px;
     font-weight: bold;
     background-color: #6a0dad;
     color: white;
     border: none;
+    border-radius: 3px;
     cursor: pointer;
     box-sizing: border-box;
+    margin-top: 4px;
 }
 
 .login-box input[type="submit"]:hover {
-    background-color: #7b1fc7;
+    background-color: #7c1fcb;
 }
 
 .create-row {
@@ -113,15 +130,16 @@ footer {
 }
 
 .create-btn {
-    padding: 8px 14px;
-    font-size: 13px;
+    padding: 7px 13px;
+    font-size: 12px;
     font-weight: bold;
-    background-color: rgba(100, 160, 255, 0.6);
+    background-color: rgba(80, 150, 255, 0.55);
     color: white;
     border: none;
+    border-radius: 3px;
     cursor: pointer;
 }
 
 .create-btn:hover {
-    background-color: rgba(100, 160, 255, 0.9);
+    background-color: rgba(80, 150, 255, 0.85);
 }

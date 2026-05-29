@@ -4,20 +4,16 @@
 
 <div class="navbar">
     <ul>
-        <li><a href="/">Back to Login</a></li>
+        <li><a href="/login">Back to Login</a></li>
     </ul>
 </div>
 
-<div class="credentials-box">
-    <h1>Account Create</h1>
+<div class="login-box">
     <form method="POST" action="/accountCreate">
-        <label for="username">Username:</label>
-        <input type="text" id="username" name="username" placeholder="Username" required><br><br>
-        <label for="password">Password:</label>
-        <input type="password" id="password" name="password" placeholder="Password" required><br><br>
-        <label for="email">Email:</label>
-        <input type="email" id="email" name="email" placeholder="Email" required><br><br>
-        <input type="submit" value="Create">
+        <input type="text" id="username" name="username" placeholder="Username" required>
+        <input type="password" id="password" name="password" placeholder="Password" required>
+        <input type="email" id="email" name="email" placeholder="Email" required>
+        <input type="submit" value="Create Account">
     </form>
 </div>
 
