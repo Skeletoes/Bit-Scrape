@@ -19,22 +19,33 @@ body {
 footer {
     text-align: center;
     padding: 3px;
-    background-color: DarkSalmon;
+    background-color: #38b6ff;
     color: white;
     position: absolute;
-    bottom: 15px;
+    bottom: 25px;
     width: 100%;
     box-sizing: border-box;
 }
 
 .logo-background {
     position: fixed;
-    top: 5px;
-    left: 5px;
-    width: 100px;
-    height: 50px;
-    background-color: #000000;
-    clip-path: polygon(5% 0%, 95% 0%, 70% 25%, 35% 25%);
+    top: 45px;
+    left: 50px;
+    width: 275px;
+    height: 110px;
+    background-color: #38b6ff;
+    clip-path: polygon(25% 0%, 80% 0%, 70% 45%, 35% 45%);
+    z-index: 10;
+}
+
+.loginNavbar {
+    position: fixed;
+    top: 0px;
+    left: 0px;
+    width: 400px;
+    height: 110px;
+    background-color: #38b6ff;
+    clip-path: polygon(0% 0%, 100% 0%, 100% 41.5%, 0% 41.5%);
     z-index: 10;
 }
 
@@ -43,7 +54,7 @@ footer {
     margin: 0;
     padding-right: 12px;
     overflow: hidden;
-    background-color: transparent;
+    background-color: #38b6ff;
 }
 
 .navbar ul li {
@@ -51,31 +62,25 @@ footer {
 }
 
 .navbar ul li a {
-    display: block;
-    color: white;
-    text-align: center;
-    padding: 8px 14px;
-    font-size: 12px;
-    font-weight: bold;
-    text-decoration: none;
-    background-color: rgba(80, 150, 255, 0.55);
-    border-radius: 3px;
-    margin: 6px 6px 0 0;
+  display: block;
+  color: white;
+  text-align: center;
+  padding: 14px 14px;
+  text-decoration: none;
 }
 
 .navbar ul li a:hover {
-    background-color: rgba(80, 150, 255, 0.85);
+    background-color: #5e17eb;
 }
 
 .login-box {
     position: absolute;
-    top: 45%;
+    top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background-color: rgba(30, 140, 255, 0.82);
+    background-color: #38b6ff;
     padding: 28px 24px;
     width: 310px;
-    border-radius: 4px;
     box-sizing: border-box;
 }
 
@@ -92,7 +97,6 @@ footer {
     padding: 15px;
     font-size: 17px;
     border: none;
-    border-radius: 3px;
     background-color: white;
     color: #333;
     text-align: center;
@@ -111,17 +115,16 @@ footer {
     padding: 15px;
     font-size: 19px;
     font-weight: bold;
-    background-color: #6a0dad;
+    background-color: #5e17eb;
     color: white;
     border: none;
-    border-radius: 3px;
     cursor: pointer;
     box-sizing: border-box;
     margin-top: 4px;
 }
 
 .login-box input[type="submit"]:hover {
-    background-color: #7c1fcb;
+    background-color: #38b6ff;
 }
 
 .create-row {
@@ -133,13 +136,12 @@ footer {
     padding: 7px 13px;
     font-size: 12px;
     font-weight: bold;
-    background-color: rgba(80, 150, 255, 0.55);
+    background-color: #5e17eb;
     color: white;
     border: none;
-    border-radius: 3px;
     cursor: pointer;
 }
 
 .create-btn:hover {
-    background-color: rgba(80, 150, 255, 0.85);
+    background-color: #38b6ff;
 }
