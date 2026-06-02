@@ -146,11 +146,12 @@ footer {
     background-color: #38b6ff;
 }
 
-.agentCreate input[type='button'] {
+.createAgent-btn {
     border: none;
     background-color: #38b6ff;
+    clip-path: polygon(85% 0%, 100% 100%, 0% 100%, 0% 0%);
     color: #ffffff;
-    padding: 10px 15px;
+    padding: 8px 17.5px;
     text-align: center;
     text-decoration: none;
     display: inline-block;

@@ -78,8 +78,12 @@ def accountCreate():
 def home():
     return render_template('home.html')
 
-@app.route('/agentCreate')
+@app.route('/agentCreate', methods=['POST'])
 def agentCreate():
+    if request.method == 'POST':
+        agentName_input = request.form['agentName']
+        webpageLink_input = request.form['webpageLink']
+        currentPrice_input = request.form['currentPrice']
     return render_template('agentCreate.html')
 
 
