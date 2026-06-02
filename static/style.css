@@ -145,3 +145,17 @@ footer {
 .create-btn:hover {
     background-color: #38b6ff;
 }
+
+.agentCreate input[type='button'] {
+    border: none;
+    background-color: #38b6ff;
+    color: #ffffff;
+    padding: 10px 15px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 15px 0px;
+    cursor: pointer;
+}
+

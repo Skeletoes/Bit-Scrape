@@ -3,22 +3,10 @@ import sqlite3
 import webview
 from threading import Thread
 
-import ctypes 
-import os
-
-# Set taskbar icon
-ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('BitScrape')
-
-icon_path = os.path.abspath('static/images/BitScrapeLogo.ico')
-ctypes.windll.user32.SendMessageW(
-    ctypes.windll.kernel32.GetConsoleWindow(), 
-    0x0080,  # WM_SETICON
-    1, 
-    ctypes.windll.user32.LoadImageW(0, icon_path, 1, 0, 0, 0x10)
-)
 
 app = Flask(__name__)
 app.secret_key = "qa567-KLu8T-ZgD45-9sdfg-1234"
+
 
 # The all in one database access/control function that will handle all the web apps database needs
 def db(query, params=()):
@@ -89,6 +77,10 @@ def accountCreate():
 @app.route('/home')
 def home():
     return render_template('home.html')
+
+@app.route('/agentCreate')
+def agentCreate():
+    return render_template('agentCreate.html')
 
 
 def run_flask():

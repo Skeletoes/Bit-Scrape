@@ -1,0 +1,20 @@
+{% extends "layout.html" %}
+
+{% block body %}
+
+<div class="navbar">
+    <ul>
+        <li><a href="/home">Back to Home</a></li>
+    </ul>
+</div>
+
+<div class="login-box">
+    <form method="POST" action="/agentCreate">
+        <input type="text" id="agentName" name="agentName" placeholder="Agent Name" required>
+        <input type="webpageLink" id="webpageLink" name="webpageLink" placeholder="Webpage Link" required>
+        <input type="currentPrice" id="currentPrice" name="currentPrice" placeholder="Current Price" required>
+        <input type="submit" value="Create Agent">
+    </form>
+</div>
+
+{% endblock %}
