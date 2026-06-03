@@ -2,6 +2,12 @@ from flask import Flask, render_template, session, redirect, url_for, request, f
 import sqlite3
 import webview
 from threading import Thread
+from playwright.sync_api import sync_playwright, expect
+from PIL import Image
+import datetime
+from faker import Faker
+import os
+
 
 
 app = Flask(__name__)
@@ -78,12 +84,28 @@ def accountCreate():
 def home():
     return render_template('home.html')
 
-@app.route('/agentCreate', methods=['POST'])
+@app.route('/agentCreate', methods=['POST', 'GET'])
 def agentCreate():
     if request.method == 'POST':
         agentName_input = request.form['agentName']
         webpageLink_input = request.form['webpageLink']
         currentPrice_input = request.form['currentPrice']
+        with sync_playwright() as p:
+            try:
+                browser = p.chromium.launch()
+                page = browser.new_page()
+                page.goto(webpageLink_input)
+                # Give the screen shot a temporary name, will delete after the image is opened
+                page.screenshot(path="tmpImg.png")
+                browser.close()
+                img = Image.open("tmpImg.png")
+                img.show()
+                # Delete the screenshot
+                os.remove("tmpImg.png")
+            except Exception as e:
+                print(e)
+                flash("There was an error accessing that webpage")
+
     return render_template('agentCreate.html')
 
 
