@@ -5,7 +5,6 @@ from threading import Thread
 from playwright.sync_api import sync_playwright, expect
 from PIL import Image
 import datetime
-from faker import Faker
 import os
 
 
@@ -102,11 +101,33 @@ def agentCreate():
                 img.show()
                 # Delete the screenshot
                 os.remove("tmpImg.png")
+                try:
+                    browser = p.chromium.launch()
+                    page = browser.new_page()
+                    page.goto(webpageLink_input)
+                    # Try this first, if the page only has one element with the smae value
+                    price_element = page.locator("#add_cart").get_by_text(currentPrice_input)
+                    price_text = price_element.text_content()
+                    print(f"Current price: {price_text}")
+                    browser.close()
+
+                except Exception as e:
+                    print(e)
+                    flash("There was an error finding that price value")
+                try:
+                    db("INSERT INTO scraperAgent (scraperName, webPageURL) VALUES (?, ?);", (agentName_input, webpageLink_input))
+                    db("INSERT INTO scrapeData (scrapeValue, scrapeTime) VALUES (?, ?);", (price_text, datetime.datetime.now()))
+                except Exception as e:
+                    print(e)
+                    flash("There was an error saving the webpage data")
             except Exception as e:
                 print(e)
                 flash("There was an error accessing that webpage")
-
     return render_template('agentCreate.html')
+
+@app.route('/configure', methods=['POST', 'GET'])
+def configure():
+    return render_template('configuration.html')
 
 
 def run_flask():
