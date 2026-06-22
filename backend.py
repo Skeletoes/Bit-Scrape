@@ -81,6 +81,7 @@ def accountCreate():
 
 @app.route('/home')
 def home():
+    session.clear()
     return render_template('home.html')
 
 @app.route('/agentCreate', methods=['POST', 'GET'])
@@ -127,7 +128,15 @@ def agentCreate():
 
 @app.route('/configure', methods=['POST', 'GET'])
 def configure():
-    return render_template('configuration.html')
+
+    if request.method = ['POST']:
+        newUsername = request.form['newUsername']
+        newPassword = request.form['newPassword']
+        newEmail = request.form['newEmail']
+        scrapeInterval = request.form['scrapeInterval']
+        if 
+
+    return render_template('configuration.html', )
 
 
 def run_flask():

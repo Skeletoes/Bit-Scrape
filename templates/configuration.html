@@ -6,9 +6,10 @@
 
 <div class="login-box">
     <form method="POST" action="/configure">
-        <input type="text" id="newUsername" name="newUsername" placeholder="New Username" required>
-        <input type="password" id="newPassword" name="newPassword" placeholder="New Password" required>
-        <input type="number" id="scrapeInterval" name="scrapeInterval" min="1" max="24" step="1" placeholder="Scrape Interval" required>
+        <input type="text" id="newUsername" name="newUsername" placeholder="New Username">
+        <input type="password" id="newPassword" name="newPassword" placeholder="New Password">
+        <input type="text" id="newEmail" name="newEmail" placeholder="New Email">
+        <input type="number" id="scrapeInterval" name="scrapeInterval" min="1" max="24" step="1" placeholder="Scrape Interval" value required>
         <input type="submit" value="Save">
         <div class="create-row">
             <a href="/accountDelete"><button type="button" class="create-btn">Delete Account</button></a>
