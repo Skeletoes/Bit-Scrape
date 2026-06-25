@@ -50,6 +50,7 @@ def login():
             flash('Credentials are incorrect')
         else:
             # If the user credentials are correct then redirect the user to home
+            session['userId'] = userData[0]
             return redirect(url_for('home'))
     return render_template('login.html')
 
@@ -129,12 +130,23 @@ def agentCreate():
 @app.route('/configure', methods=['POST', 'GET'])
 def configure():
 
-    if request.method = ['POST']:
+    if request.method == ['POST']:
         newUsername = request.form['newUsername']
         newPassword = request.form['newPassword']
         newEmail = request.form['newEmail']
         scrapeInterval = request.form['scrapeInterval']
-        if 
+        try:
+            if newUsername is not None:
+                db("""INSERT INTO user WHERE userID = ? (userName) VALUES (?);""", (session['userId', newUsername]))
+            if newPassword is not None:
+                db("""INSERT INTO user WHERE userID = ? (userPassword) VALUES (?);""", (session['userId', newPassword]))
+            if newEmail is not None:
+                db("""INSERT INTO user WHERE userID = ? (userEmail) VALUES (?);""", (session['userId', newEmail]))
+            if scrapeInterval is not None:
+                db("""INSERT INTO scraperAgent WHERE userID = ? TABLES (scrapeInterval) VALUES (?);""", (session['userId', scrapeInterval]))
+            return redirect(url_for('home'))
+        except Exception as e:
+            print(e)
 
     return render_template('configuration.html', )
 
