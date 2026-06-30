@@ -50,7 +50,7 @@ def login():
             flash('Credentials are incorrect')
         else:
             # If the user credentials are correct then redirect the user to home
-            session['userId'] = userData[0]
+            session['userID'] = userData[0][0]
             return redirect(url_for('home'))
     return render_template('login.html')
 
@@ -82,7 +82,6 @@ def accountCreate():
 
 @app.route('/home')
 def home():
-    session.clear()
     return render_template('home.html')
 
 @app.route('/agentCreate', methods=['POST', 'GET'])
@@ -98,30 +97,17 @@ def agentCreate():
                 page.goto(webpageLink_input)
                 # Give the screen shot a temporary name, will delete after the image is opened
                 page.screenshot(path="tmpImg.png")
+                price_element = page.locator("#add_cart").get_by_text(currentPrice_input)
+                price_text = price_element.text_content()
+                print(f"Current price: {price_text}")
                 browser.close()
                 img = Image.open("tmpImg.png")
                 img.show()
                 # Delete the screenshot
                 os.remove("tmpImg.png")
-                try:
-                    browser = p.chromium.launch()
-                    page = browser.new_page()
-                    page.goto(webpageLink_input)
-                    # Try this first, if the page only has one element with the smae value
-                    price_element = page.locator("#add_cart").get_by_text(currentPrice_input)
-                    price_text = price_element.text_content()
-                    print(f"Current price: {price_text}")
-                    browser.close()
-
-                except Exception as e:
-                    print(e)
-                    flash("There was an error finding that price value")
-                try:
-                    db("INSERT INTO scraperAgent (scraperName, webPageURL) VALUES (?, ?);", (agentName_input, webpageLink_input))
-                    db("INSERT INTO scrapeData (scrapeValue, scrapeTime) VALUES (?, ?);", (price_text, datetime.datetime.now()))
-                except Exception as e:
-                    print(e)
-                    flash("There was an error saving the webpage data")
+                db("""INSERT INTO scraperAgent (userID, scraperName, webPageURL) VALUES (?, ?, ?);""", (session['userID'], agentName_input, webpageLink_input))
+                agentID = db("""SELECT scraperID FROM scraperAgent WHERE userID = ?;""", (session['userID']))
+                db("""INSERT INTO scrapeData (scraperID, scrapeValue, scrapeTime) VALUES (?, ?);""", (agentID, price_text, datetime.datetime.now()))
             except Exception as e:
                 print(e)
                 flash("There was an error accessing that webpage")
@@ -130,20 +116,20 @@ def agentCreate():
 @app.route('/configure', methods=['POST', 'GET'])
 def configure():
 
-    if request.method == ['POST']:
+    if request.method == 'POST':
         newUsername = request.form['newUsername']
         newPassword = request.form['newPassword']
         newEmail = request.form['newEmail']
         scrapeInterval = request.form['scrapeInterval']
         try:
             if newUsername is not None:
-                db("""INSERT INTO user WHERE userID = ? (userName) VALUES (?);""", (session['userId', newUsername]))
+                db("""UPDATE user SET userName = ? WHERE userID = ?;""", (newUsername, session['userID']))
             if newPassword is not None:
-                db("""INSERT INTO user WHERE userID = ? (userPassword) VALUES (?);""", (session['userId', newPassword]))
+                db("""UPDATE user SET userPassword = ? WHERE userID = ?;""", (newPassword, session['userID']))
             if newEmail is not None:
-                db("""INSERT INTO user WHERE userID = ? (userEmail) VALUES (?);""", (session['userId', newEmail]))
+                db("""UPDATE user SET userEmail = ? WHERE userID = ?;""", (newEmail, session['userID']))
             if scrapeInterval is not None:
-                db("""INSERT INTO scraperAgent WHERE userID = ? TABLES (scrapeInterval) VALUES (?);""", (session['userId', scrapeInterval]))
+                db("""UPDATE scraperAgent SET scrapeInterval = ? WHERE userID = ?;""", (scrapeInterval, session['userID']))
             return redirect(url_for('home'))
         except Exception as e:
             print(e)
@@ -174,4 +160,3 @@ if __name__ == '__main__':
     )
     webview.start(icon='static/images/BitScrapeLogo.ico')
     # Start the application window
-    webview.start()
