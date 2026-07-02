@@ -106,8 +106,8 @@ def agentCreate():
                 # Delete the screenshot
                 os.remove("tmpImg.png")
                 db("""INSERT INTO scraperAgent (userID, scraperName, webPageURL) VALUES (?, ?, ?);""", (session['userID'], agentName_input, webpageLink_input))
-                agentID = db("""SELECT scraperID FROM scraperAgent WHERE userID = ?;""", (session['userID']))
-                db("""INSERT INTO scrapeData (scraperID, scrapeValue, scrapeTime) VALUES (?, ?);""", (agentID, price_text, datetime.datetime.now()))
+                agentID = db("""SELECT scraperID FROM scraperAgent WHERE userID = ?;""", (session['userID'], ))
+                db("""INSERT INTO scrapeData (scraperID, scrapeValue, scrapeTime) VALUES (?, ?, ?);""", (agentID, price_text, datetime.datetime.now()))
             except Exception as e:
                 print(e)
                 flash("There was an error accessing that webpage")
@@ -122,14 +122,22 @@ def configure():
         newEmail = request.form['newEmail']
         scrapeInterval = request.form['scrapeInterval']
         try:
-            if newUsername is not None:
+            if newUsername:
                 db("""UPDATE user SET userName = ? WHERE userID = ?;""", (newUsername, session['userID']))
-            if newPassword is not None:
+            else:
+                print('User did not change username.')
+            if newPassword:
                 db("""UPDATE user SET userPassword = ? WHERE userID = ?;""", (newPassword, session['userID']))
-            if newEmail is not None:
+            else:
+                print('User did not change password.')
+            if newEmail:
                 db("""UPDATE user SET userEmail = ? WHERE userID = ?;""", (newEmail, session['userID']))
-            if scrapeInterval is not None:
+            else:
+                print('User did not change email.')
+            if scrapeInterval:
                 db("""UPDATE scraperAgent SET scrapeInterval = ? WHERE userID = ?;""", (scrapeInterval, session['userID']))
+            else:
+                print('User did not change the scrape interval.')
             return redirect(url_for('home'))
         except Exception as e:
             print(e)
