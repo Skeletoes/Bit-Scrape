@@ -97,7 +97,7 @@ def agentCreate():
                 page.goto(webpageLink_input)
                 # Give the screen shot a temporary name, will delete after the image is opened
                 page.screenshot(path="tmpImg.png")
-                price_element = page.locator("#add_cart").get_by_text(currentPrice_input)
+                price_element = page.locator(f"xpath={currentPrice_input}")
                 price_text = price_element.text_content()
                 print(f"Current price: {price_text}")
                 browser.close()
