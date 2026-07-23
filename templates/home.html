@@ -15,13 +15,13 @@
 <div class="configure">
     <a href="/configure"><button type="button" class="configure-btn">Configure</button></a>
 </div>
+
 <form action="/default" method="POST">
     <div class="agent-list">
         {% for agent in agents %}
             <div class="agent-box">
-                <h1>{{ agent }}</h1>
-                <button type="submit" formaction="/view" name="" value="{{ agent }}">Delete</button>
-                <button type="submit" formaction="/view" name="" value="{{ agent }}">Configure</button>
+                <p>{{ agent }}</p>
+                <button type="submit" formaction="/agentConfig" name="" value="{{ agent }}">Configure</button>
             </div>
         {% endfor %}
     </div>

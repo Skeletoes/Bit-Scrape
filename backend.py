@@ -82,8 +82,13 @@ def accountCreate():
 
 @app.route('/home')
 def home():
-    scraperAgents = db("""SELECT  FROM scraperAgent WHERE userID = ?;""", (session['userID'], ))
+    scraperAgents = db("""SELECT scraperName FROM scraperAgent WHERE userID = ?;""", (session['userID'], ))
     return render_template('home.html', agents=scraperAgents)
+
+@app.route('/agentConfig', methods=['POST', 'GET'])
+def agentConfig():
+    if request.method == 'POST':
+        return render_template('agentConfig.html')
 
 @app.route('/agentCreate', methods=['POST', 'GET'])
 def agentCreate():
@@ -126,7 +131,6 @@ def configure():
         newUsername = request.form['newUsername']
         newPassword = request.form['newPassword']
         newEmail = request.form['newEmail']
-        scrapeInterval = request.form['scrapeInterval']
         try:
             if newUsername:
                 db("""UPDATE user SET userName = ? WHERE userID = ?;""", (newUsername, session['userID']))
@@ -140,10 +144,6 @@ def configure():
                 db("""UPDATE user SET userEmail = ? WHERE userID = ?;""", (newEmail, session['userID']))
             else:
                 print('User did not change email.')
-            if scrapeInterval:
-                db("""UPDATE scraperAgent SET scrapeInterval = ? WHERE userID = ?;""", (scrapeInterval, session['userID']))
-            else:
-                print('User did not change the scrape interval.')
             return redirect(url_for('home'))
         except Exception as e:
             print(e)

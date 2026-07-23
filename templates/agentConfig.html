@@ -1,0 +1,24 @@
+{% extends "layout.html" %}
+
+{% block body %}
+
+<div class="loginNavbar">
+    <ul>
+        <li><a href="/home">Back to Home</a></li>
+    </ul>
+</div>
+
+<div class="login-box">
+    <form method="POST" action="/agentConfig">
+        <input type="text" id="newAgent-name" name="newAgent-name" placeholder="New Name" value="">
+        <input type="text" id="newAgent-link" name="newAgent-link" placeholder="New Link">
+        <input type="text" id="newAgent-xpath" name="newAgent-xpath" placeholder="New XPath">
+        <input type="number" id="scrapeInterval" name="scrapeInterval" min="1" max="24" step="1" placeholder="Scrape Interval" value required>
+        <input type="submit" value="Save">
+        <div class="create-row">
+            <a href="/agentDelete"><button type="button" class="create-btn">Delete Agentt</button></a>
+        </div>
+    </form>
+</div>
+
+{% endblock %}
