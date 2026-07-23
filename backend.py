@@ -82,14 +82,15 @@ def accountCreate():
 
 @app.route('/home')
 def home():
-    return render_template('home.html')
+    scraperAgents = db("""SELECT  FROM scraperAgent WHERE userID = ?;""", (session['userID'], ))
+    return render_template('home.html', agents=scraperAgents)
 
 @app.route('/agentCreate', methods=['POST', 'GET'])
 def agentCreate():
     if request.method == 'POST':
         agentName_input = request.form['agentName']
         webpageLink_input = request.form['webpageLink']
-        currentPrice_input = request.form['currentPrice']
+        elementXpath_input = request.form['elementXpath']
         with sync_playwright() as p:
             try:
                 browser = p.chromium.launch()
@@ -97,7 +98,7 @@ def agentCreate():
                 page.goto(webpageLink_input)
                 # Give the screen shot a temporary name, will delete after the image is opened
                 page.screenshot(path="tmpImg.png")
-                price_element = page.locator(f"xpath={currentPrice_input}")
+                price_element = page.locator(f"xpath={elementXpath_input}")
                 price_text = price_element.text_content()
                 print(f"Current price: {price_text}")
                 browser.close()
@@ -105,9 +106,14 @@ def agentCreate():
                 img.show()
                 # Delete the screenshot
                 os.remove("tmpImg.png")
-                db("""INSERT INTO scraperAgent (userID, scraperName, webPageURL) VALUES (?, ?, ?);""", (session['userID'], agentName_input, webpageLink_input))
-                agentID = db("""SELECT scraperID FROM scraperAgent WHERE userID = ?;""", (session['userID'], ))
-                db("""INSERT INTO scrapeData (scraperID, scrapeValue, scrapeTime) VALUES (?, ?, ?);""", (agentID, price_text, datetime.datetime.now()))
+                if not db("""SELECT * FROM scraperAgent WHERE scraperName = ?;""", (agentName_input, )):
+                    db("""INSERT INTO scraperAgent (userID, scraperName, webPageURL) VALUES (?, ?, ?);""", (session['userID'], agentName_input, webpageLink_input))
+                    agentID = db("""SELECT scraperID FROM scraperAgent WHERE userID = ? AND scraperName = ?;""", (session['userID'], agentName_input))
+                    agentID = agentID[0][0]
+                    ("""INSERT INTO scrapeData (scraperID, scrapeValue, scrapeTime) VALUES (?, ?, ?);""", (agentID, price_text, datetime.datetime.now()))
+                    return redirect(url_for('home'))
+                else:
+                    flash("That scraper agent name is already in use.")
             except Exception as e:
                 print(e)
                 flash("There was an error accessing that webpage")
