@@ -83,7 +83,10 @@ def accountCreate():
 @app.route('/home')
 def home():
     scraperAgents = db("""SELECT scraperName FROM scraperAgent WHERE userID = ?;""", (session['userID'], ))
-    return render_template('home.html', agents=scraperAgents)
+    agents = []
+    for i in scraperAgents:
+        agents.append(i[0])
+    return render_template('home.html', agents=agents)
 
 @app.route('/agentConfig', methods=['POST', 'GET'])
 def agentConfig():
@@ -172,5 +175,5 @@ if __name__ == '__main__':
         # Set resizable to false so that the window can not be resized at all
         resizable=False
     )
-    webview.start(icon='static/images/BitScrapeLogo.ico')
+    webview.start(icon='static/images/BitScrapeLogo.ico', gui='edgechromium')
     # Start the application window

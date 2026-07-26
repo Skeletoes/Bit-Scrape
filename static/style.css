@@ -14,6 +14,7 @@ body {
     margin: 0;
     padding: 0;
     position: relative;
+    font-family: "Bitcount Grid Double", system-ui;
 }
 
 footer {
@@ -65,12 +66,12 @@ footer {
   display: block;
   color: white;
   text-align: center;
-  padding: 14px 14px;
+  padding: 8.5px 8.5px;
   text-decoration: none;
 }
 
 .navbar ul li a:hover {
-    background-color: #5e17eb;
+    color:#5e17eb;
 }
 
 .login-box {
@@ -146,17 +147,98 @@ footer {
     background-color: #38b6ff;
 }
 
+.agentCreate {
+    position: relative;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.configure {
+    position: absolute;
+    top: 47px;
+    right: 10px;
+    display: flex;
+    justify-content: flex-end;
+}
+
 .createAgent-btn {
     border: none;
     background-color: #38b6ff;
-    clip-path: polygon(85% 0%, 100% 100%, 0% 100%, 0% 0%);
+    clip-path: polygon(84% 0%, 100% 100%, 0% 100%, 0% 0%);
     color: #ffffff;
-    padding: 8px 17.5px;
+    padding: 8px 55px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 15px;
+    margin: 15px 0px;
+    cursor: pointer;
+    font-family: "Bitcount Grid Double", system-ui;
+}
+
+.createAgent-btn:hover {
+    background-color: #5e17eb;
+}
+
+.configure-btn {
+    border: none;
+    background-color: #38b6ff;
+    clip-path: polygon(16% 0%, 0% 100%, 100% 100%, 100% 0%);
+    color: #ffffff;
+    padding: 8px 55px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 15px;
+    margin: 15px 0px;
+    cursor: pointer;
+    font-family: "Bitcount Grid Double", system-ui;
+}
+.configure-btn:hover {
+    background-color: #5e17eb;
+}
+
+.configure {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.agent-list {
+    overflow-y: auto;
+    width: 405px;
+    height: 350px;
+}
+.agent-box {
+    width: 335px;
+    height: 50px;
+    background-color: #38b6ff;
+    margin: 25px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0px 0px 0px 10px;
+    box-sizing: border-box;
+}
+
+.agent-btn {
+    background-color: #5e17eb;
+    border: none;
+    color: white;
+    padding: 11px 20px;
     text-align: center;
     text-decoration: none;
     display: inline-block;
     font-size: 16px;
-    margin: 15px 0px;
     cursor: pointer;
 }
 
+.agent-btn:hover {
+    background-color: #38b6ff;
+}
+
+.agent-box p {
+    font-size: 18px;
+    color: white;
+    font-weight: bold;
+    margin: 0;
+}

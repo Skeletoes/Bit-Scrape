@@ -4,16 +4,16 @@
 
 <div class="navbar">
     <ul>
-        <li><a href="/">Logout</a></li>
+        <li><a href="/"><i class="material-icons">arrow_back</i></a></li>
     </ul>
 </div>
 
 <div class="agentCreate">
-    <a href="/agentCreate"><button type="button" class="createAgent-btn">Create Agent</button></a>
+    <a href="/agentCreate"><button type="button" class="createAgent-btn"><i class="material-icons">add</i></button></a>
 </div>
 
 <div class="configure">
-    <a href="/configure"><button type="button" class="configure-btn">Configure</button></a>
+    <a href="/configure"><button type="button" class="configure-btn"><i class="material-icons">perm_identity</i></button></a>
 </div>
 
 <form action="/default" method="POST">
@@ -21,7 +21,7 @@
         {% for agent in agents %}
             <div class="agent-box">
                 <p>{{ agent }}</p>
-                <button type="submit" formaction="/agentConfig" name="" value="{{ agent }}">Configure</button>
+                <button type="submit" formaction="/agentConfig" class="agent-btn" value="{{ agent }}"><i class="material-icons">settings</i></button>
             </div>
         {% endfor %}
     </div>
