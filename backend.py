@@ -91,7 +91,27 @@ def home():
 @app.route('/agentConfig', methods=['POST', 'GET'])
 def agentConfig():
     if request.method == 'POST':
-        return render_template('agentConfig.html')
+        agentName = request.form['agentName']
+        scraperID = db("""SELECT scraperID FROM scraperAgent WHERE userID = ? and scraperName = ?;""", (session['userID'], agentName,))
+        newAgent_name = request.form['newAgent-name']
+        newAgent_link = request.form['newAgent-link']
+        newAgent_xpath = request.form['newAgent-xpath']
+        scrapeInterval = request.form['scrapeInterval']
+        if newAgent_name:
+            db("""UPDATE scraperAgent SET scraperName = ? WHERE scraperID = ?;""", (newAgent_name, scraperID,))
+        else:
+            print("Scraper Agent name was not changed.")
+        if newAgent_link:
+            db("""UPDATE scraperAgent SET webPageURL = ? WHERE scraperID = ?;""", (newAgent_link, scraperID,))
+        else:
+            print("Scraper agent link was not changed.")
+        if newAgent_xpath:
+            db("""UPDATE scraperAgent SET elementXPath = ? WHERE scraperID = ?;""", (newAgent_xpath, scraperID,))
+        else:
+            print("Scraper agent XPath was not changed.")
+        if scrapeInterval:
+            db("""UPDATE scraperAgent SET scrapeInterval = ? WHERE scraperID = ?;""", (scrapeInterval, scraperID,))
+    return render_template('agentConfig.html')
 
 @app.route('/agentCreate', methods=['POST', 'GET'])
 def agentCreate():
