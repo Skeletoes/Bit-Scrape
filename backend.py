@@ -83,22 +83,46 @@ def accountCreate():
 @app.route('/home')
 def home():
     scraperAgents = db("""SELECT scraperName FROM scraperAgent WHERE userID = ?;""", (session['userID'], ))
-    agents = []
-    for i in scraperAgents:
-        agents.append(i[0])
-    return render_template('home.html', agents=agents)
+    return render_template('home.html', agents=[row[0] for row in scraperAgents])
+
+@app.route('/agentSelect', methods=['POST', 'GET'])
+def agentSelect():
+    if request.method == 'POST':
+        agentName = request.form['agentName']
+        agent = db("""SELECT scraperID FROM scraperAgent WHERE userID = ? and scraperName = ?;""", (session['userID'], agentName,))
+        session['scraperID'] = agent[0][0]
+    return redirect(url_for('agentConfig'))
+
+@app.route('/agentDelete', methods=['POST', 'GET'])
+def agentDelete():
+    if request.method == 'POST':
+        db("""DELETE FROM scrapeData WHERE scraperID =?;""", (session['scraperID'],))
+        db("""DELETE FROM scraperAgent WHERE scraperID = ?;""", (session['scraperID'],))
+    return redirect(url_for('home'))
+
+@app.route('/userDelete', methods=['POST', 'GET'])
+def userDelete():
+    if request.method == 'POST':
+        db("""DELETE FROM scrapeData WHERE userID = ?;""", (session['userID'],))
+        db("""DELETE FROM scraperAgent WHERE userID = ?;""", (session['userID'],))
+        db("""DELETE FROM user WHERE userID = ?;""", (session['userID'],))
+    return redirect(url_for('index'))
 
 @app.route('/agentConfig', methods=['POST', 'GET'])
 def agentConfig():
     if request.method == 'POST':
-        agentName = request.form['agentName']
-        scraperID = db("""SELECT scraperID FROM scraperAgent WHERE userID = ? and scraperName = ?;""", (session['userID'], agentName,))
+        userAgents_names = db("""SELECT scraperName FROM scraperAgent WHERE userID = ?;""", (session['userID'],))
+        userAgents_names = [row[0] for row in userAgents_names] # Loops through the tuples and creates a new easy to access list
+        scraperID = session['scraperID']
         newAgent_name = request.form['newAgent-name']
         newAgent_link = request.form['newAgent-link']
         newAgent_xpath = request.form['newAgent-xpath']
         scrapeInterval = request.form['scrapeInterval']
         if newAgent_name:
-            db("""UPDATE scraperAgent SET scraperName = ? WHERE scraperID = ?;""", (newAgent_name, scraperID,))
+            if newAgent_name in userAgents_names:
+                flash("You have already used thet scraper agent name!")
+            else:
+                db("""UPDATE scraperAgent SET scraperName = ? WHERE scraperID = ?;""", (newAgent_name, scraperID,))
         else:
             print("Scraper Agent name was not changed.")
         if newAgent_link:
@@ -111,7 +135,10 @@ def agentConfig():
             print("Scraper agent XPath was not changed.")
         if scrapeInterval:
             db("""UPDATE scraperAgent SET scrapeInterval = ? WHERE scraperID = ?;""", (scrapeInterval, scraperID,))
-    return render_template('agentConfig.html')
+        return redirect(url_for('home'))
+    agentDetails = db("""SELECT scraperName, webPageURL, elementXPath, scrapeInterval FROM scraperAgent WHERE scraperID = ?;""", (session['scraperID'],))
+    name, link, xpath, interval = agentDetails[0]
+    return render_template('agentConfig.html', name=name, link=link, xpath=xpath, interval=interval)
 
 @app.route('/agentCreate', methods=['POST', 'GET'])
 def agentCreate():
@@ -119,6 +146,7 @@ def agentCreate():
         agentName_input = request.form['agentName']
         webpageLink_input = request.form['webpageLink']
         elementXpath_input = request.form['elementXpath']
+        scrapeInterval_input = request.form['scrapeInterval']
         with sync_playwright() as p:
             try:
                 browser = p.chromium.launch()
@@ -135,10 +163,10 @@ def agentCreate():
                 # Delete the screenshot
                 os.remove("tmpImg.png")
                 if not db("""SELECT * FROM scraperAgent WHERE scraperName = ?;""", (agentName_input, )):
-                    db("""INSERT INTO scraperAgent (userID, scraperName, webPageURL) VALUES (?, ?, ?);""", (session['userID'], agentName_input, webpageLink_input))
+                    db("""INSERT INTO scraperAgent (userID, scraperName, webPageURL, scrapeInterval, elementXPath) VALUES (?, ?, ?, ?, ?);""", (session['userID'], agentName_input, webpageLink_input, scrapeInterval_input, elementXpath_input))
                     agentID = db("""SELECT scraperID FROM scraperAgent WHERE userID = ? AND scraperName = ?;""", (session['userID'], agentName_input))
                     agentID = agentID[0][0]
-                    ("""INSERT INTO scrapeData (scraperID, scrapeValue, scrapeTime) VALUES (?, ?, ?);""", (agentID, price_text, datetime.datetime.now()))
+                    ("""INSERT INTO scrapeData (scraperID, scrapeValue, scrapeTime, elementXPath) VALUES (?, ?, ?, ?);""", (agentID, price_text, datetime.datetime.now(), elementXpath_input))
                     return redirect(url_for('home'))
                 else:
                     flash("That scraper agent name is already in use.")
@@ -147,9 +175,10 @@ def agentCreate():
                 flash("There was an error accessing that webpage")
     return render_template('agentCreate.html')
 
+
+
 @app.route('/configure', methods=['POST', 'GET'])
 def configure():
-
     if request.method == 'POST':
         newUsername = request.form['newUsername']
         newPassword = request.form['newPassword']
@@ -170,8 +199,9 @@ def configure():
             return redirect(url_for('home'))
         except Exception as e:
             print(e)
-
-    return render_template('configuration.html', )
+    userDetails = db("""SELECT userName, userPassword, userEmail FROM user WHERE userID = ?;""", (session['userID'],))
+    name, password, email = userDetails[0]
+    return render_template('configuration.html', name=name, password=password, email=email)
 
 
 def run_flask():

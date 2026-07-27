@@ -16,12 +16,12 @@
     <a href="/configure"><button type="button" class="configure-btn"><i class="material-icons">perm_identity</i></button></a>
 </div>
 
-<form method="POST" action="/agentConfig">
+<form action="/default" method="POST">
     <div class="agent-list">
         {% for agent in agents %}
             <div class="agent-box">
                 <p>{{ agent }}</p>
-                <button type="submit" class="agent-btn" id="agentName" value="{{ agent }}"><i class="material-icons">settings</i></button>
+                <button type="submit" class="agent-btn" name="agentName" formaction="/agentSelect" value="{{ agent }}"><i class="material-icons">settings</i></button>
             </div>
         {% endfor %}
     </div>

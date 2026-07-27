@@ -9,13 +9,13 @@
 </div>
 
 <div class="login-box">
-    <form method="POST" action="/configure">
-        <input type="text" id="newUsername" name="newUsername" placeholder="New Username" value="">
-        <input type="password" id="newPassword" name="newPassword" placeholder="New Password">
-        <input type="text" id="newEmail" name="newEmail" placeholder="New Email">
-        <input type="submit" value="Save">
+    <form method="POST" action="/default">
+        <input type="text" id="newUsername" name="newUsername" placeholder="New Username" value="{{ name }}">
+        <input type="password" id="newPassword" name="newPassword" placeholder="New Password" value="{{ password }}">
+        <input type="text" id="newEmail" name="newEmail" placeholder="New Email" value="{{ email }}">
+        <input type="submit" formaction="/configure" value="Save">
         <div class="create-row">
-            <a href="/accountDelete"><button type="button" class="create-btn">Delete Account</button></a>
+            <button type="submit" formaction="/userDelete" class="create-btn">Delete Account</button>
         </div>
     </form>
 </div>
