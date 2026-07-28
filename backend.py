@@ -116,8 +116,7 @@ def agentConfig():
         scraperID = session['scraperID']
         newAgent_name = request.form['newAgent-name']
         newAgent_link = request.form['newAgent-link']
-        newAgent_xpath = request.form['newAgent-xpath']
-        scrapeInterval = request.form['scrapeInterval']
+        newAgent_selector = request.form['newAgent-selector']
         if newAgent_name:
             if newAgent_name in userAgents_names:
                 flash("You have already used thet scraper agent name!")
@@ -129,16 +128,14 @@ def agentConfig():
             db("""UPDATE scraperAgent SET webPageURL = ? WHERE scraperID = ?;""", (newAgent_link, scraperID,))
         else:
             print("Scraper agent link was not changed.")
-        if newAgent_xpath:
-            db("""UPDATE scraperAgent SET elementXPath = ? WHERE scraperID = ?;""", (newAgent_xpath, scraperID,))
+        if newAgent_selector:
+            db("""UPDATE scraperAgent SET elementSelector = ? WHERE scraperID = ?;""", (newAgent_selector, scraperID,))
         else:
-            print("Scraper agent XPath was not changed.")
-        if scrapeInterval:
-            db("""UPDATE scraperAgent SET scrapeInterval = ? WHERE scraperID = ?;""", (scrapeInterval, scraperID,))
+            print("Scraper agent selector was not changed.")
         return redirect(url_for('home'))
-    agentDetails = db("""SELECT scraperName, webPageURL, elementXPath, scrapeInterval FROM scraperAgent WHERE scraperID = ?;""", (session['scraperID'],))
-    name, link, xpath, interval = agentDetails[0]
-    return render_template('agentConfig.html', name=name, link=link, xpath=xpath, interval=interval)
+    agentDetails = db("""SELECT scraperName, webPageURL, elementSelector FROM scraperAgent WHERE scraperID = ?;""", (session['scraperID'],))
+    name, link, selector, interval = agentDetails[0]
+    return render_template('agentConfig.html', name=name, link=link, selector=selector)
 
 @app.route('/agentCreate', methods=['POST', 'GET'])
 def agentCreate():
@@ -146,7 +143,6 @@ def agentCreate():
         agentName_input = request.form['agentName']
         webpageLink_input = request.form['webpageLink']
         elementSelector_input = request.form['elementSelector']
-        scrapeInterval_input = request.form['scrapeInterval']
         with sync_playwright() as p:
             try:
                 browser = p.chromium.launch()
@@ -167,10 +163,10 @@ def agentCreate():
                 # Delete the screenshot
                 os.remove("tmpImg.png")
                 if not db("""SELECT * FROM scraperAgent WHERE scraperName = ?;""", (agentName_input, )):
-                    db("""INSERT INTO scraperAgent (userID, scraperName, webPageURL, scrapeInterval, elementXPath) VALUES (?, ?, ?, ?, ?);""", (session['userID'], agentName_input, webpageLink_input, scrapeInterval_input, elementXpath_input))
+                    db("""INSERT INTO scraperAgent (userID, scraperName, webPageURL, elementSelector) VALUES (?, ?, ?, ?);""", (session['userID'], agentName_input, webpageLink_input, elementSelector_input))
                     agentID = db("""SELECT scraperID FROM scraperAgent WHERE userID = ? AND scraperName = ?;""", (session['userID'], agentName_input))
                     agentID = agentID[0][0]
-                    ("""INSERT INTO scrapeData (scraperID, scrapeValue, scrapeTime, elementXPath) VALUES (?, ?, ?, ?);""", (agentID, price_text, datetime.datetime.now(), elementSelector_input))
+                    db("""INSERT INTO scrapeData (userID, scraperID, scrapeValue, scrapeTime, elementSelector) VALUES (?, ?, ?, ?);""", (session['userID'], agentID, price_text, datetime.datetime.now(), elementSelector_input))
                     return redirect(url_for('home'))
                 else:
                     flash("That scraper agent name is already in use.")
@@ -187,6 +183,7 @@ def configure():
         newUsername = request.form['newUsername']
         newPassword = request.form['newPassword']
         newEmail = request.form['newEmail']
+        scrapeInterval = request.form['scrapeInterval']
         try:
             if newUsername:
                 db("""UPDATE user SET userName = ? WHERE userID = ?;""", (newUsername, session['userID']))
@@ -200,12 +197,17 @@ def configure():
                 db("""UPDATE user SET userEmail = ? WHERE userID = ?;""", (newEmail, session['userID']))
             else:
                 print('User did not change email.')
+            if scrapeInterval:
+                db("""UPDATE user SET scrapeInterval = ? WHERE userID = ?;""", (scrapeInterval, session['userID'],))
             return redirect(url_for('home'))
         except Exception as e:
             print(e)
-    userDetails = db("""SELECT userName, userPassword, userEmail FROM user WHERE userID = ?;""", (session['userID'],))
-    name, password, email = userDetails[0]
-    return render_template('configuration.html', name=name, password=password, email=email)
+    userDetails = db("""SELECT userName, userPassword, userEmail, scrapeInterval FROM user WHERE userID = ?;""", (session['userID'],))
+    name, password, email, interval = userDetails[0]
+    return render_template('configuration.html', name=name, password=password, email=email, interval=interval)
+
+def automation_Time():
+
 
 
 def run_flask():
