@@ -5,6 +5,7 @@ from threading import Thread
 from playwright.sync_api import sync_playwright, expect
 from PIL import Image
 import datetime
+import time
 import os
 
 
@@ -51,6 +52,16 @@ def login():
         else:
             # If the user credentials are correct then redirect the user to home
             session['userID'] = userData[0][0]
+            userAgents = db("""SELECT scraperID, scrapeInterval FROM scraperAgent WHERE userID = ?;""", (session['userID'],))
+            if userAgents:
+                        agent_intervals = {
+                            scraper_id: scrape_interval
+                            for scraper_id, scrape_interval in userAgents
+                        }
+
+            session['startTime'] = time.time()
+            session['scrapeInterval'] = userData[0][5]
+
             return redirect(url_for('home'))
     return render_template('login.html')
 
@@ -117,6 +128,7 @@ def agentConfig():
         newAgent_name = request.form['newAgent-name']
         newAgent_link = request.form['newAgent-link']
         newAgent_selector = request.form['newAgent-selector']
+        scrapeInterval = request.form['scrapeInterval']
         if newAgent_name:
             if newAgent_name in userAgents_names:
                 flash("You have already used thet scraper agent name!")
@@ -132,10 +144,12 @@ def agentConfig():
             db("""UPDATE scraperAgent SET elementSelector = ? WHERE scraperID = ?;""", (newAgent_selector, scraperID,))
         else:
             print("Scraper agent selector was not changed.")
+        if scrapeInterval:
+            db("""UPDATE user SET scrapeInterval = ? WHERE userID = ?;""", (scrapeInterval, session['userID'],))
         return redirect(url_for('home'))
-    agentDetails = db("""SELECT scraperName, webPageURL, elementSelector FROM scraperAgent WHERE scraperID = ?;""", (session['scraperID'],))
+    agentDetails = db("""SELECT scraperName, webPageURL, elementSelector, scrapeInterval FROM scraperAgent WHERE scraperID = ?;""", (session['scraperID'],))
     name, link, selector, interval = agentDetails[0]
-    return render_template('agentConfig.html', name=name, link=link, selector=selector)
+    return render_template('agentConfig.html', name=name, link=link, selector=selector, interval=interval)
 
 @app.route('/agentCreate', methods=['POST', 'GET'])
 def agentCreate():
@@ -143,6 +157,7 @@ def agentCreate():
         agentName_input = request.form['agentName']
         webpageLink_input = request.form['webpageLink']
         elementSelector_input = request.form['elementSelector']
+        scrapeInterval = request.form['scrapeInterval']
         with sync_playwright() as p:
             try:
                 browser = p.chromium.launch()
@@ -163,10 +178,10 @@ def agentCreate():
                 # Delete the screenshot
                 os.remove("tmpImg.png")
                 if not db("""SELECT * FROM scraperAgent WHERE scraperName = ?;""", (agentName_input, )):
-                    db("""INSERT INTO scraperAgent (userID, scraperName, webPageURL, elementSelector) VALUES (?, ?, ?, ?);""", (session['userID'], agentName_input, webpageLink_input, elementSelector_input))
+                    db("""INSERT INTO scraperAgent (userID, scraperName, webPageURL, elementSelector, scrapeInterval) VALUES (?, ?, ?, ?, ?);""", (session['userID'], agentName_input, webpageLink_input, elementSelector_input, scrapeInterval))
                     agentID = db("""SELECT scraperID FROM scraperAgent WHERE userID = ? AND scraperName = ?;""", (session['userID'], agentName_input))
                     agentID = agentID[0][0]
-                    db("""INSERT INTO scrapeData (userID, scraperID, scrapeValue, scrapeTime, elementSelector) VALUES (?, ?, ?, ?);""", (session['userID'], agentID, price_text, datetime.datetime.now(), elementSelector_input))
+                    db("""INSERT INTO scrapeData (userID, scraperID, scrapeValue, scrapeTime, elementSelector) VALUES (?, ?, ?, ?, ?);""", (session['userID'], agentID, price_text, datetime.datetime.now(), elementSelector_input))
                     return redirect(url_for('home'))
                 else:
                     flash("That scraper agent name is already in use.")
@@ -183,7 +198,6 @@ def configure():
         newUsername = request.form['newUsername']
         newPassword = request.form['newPassword']
         newEmail = request.form['newEmail']
-        scrapeInterval = request.form['scrapeInterval']
         try:
             if newUsername:
                 db("""UPDATE user SET userName = ? WHERE userID = ?;""", (newUsername, session['userID']))
@@ -197,16 +211,18 @@ def configure():
                 db("""UPDATE user SET userEmail = ? WHERE userID = ?;""", (newEmail, session['userID']))
             else:
                 print('User did not change email.')
-            if scrapeInterval:
-                db("""UPDATE user SET scrapeInterval = ? WHERE userID = ?;""", (scrapeInterval, session['userID'],))
             return redirect(url_for('home'))
         except Exception as e:
             print(e)
-    userDetails = db("""SELECT userName, userPassword, userEmail, scrapeInterval FROM user WHERE userID = ?;""", (session['userID'],))
-    name, password, email, interval = userDetails[0]
-    return render_template('configuration.html', name=name, password=password, email=email, interval=interval)
+    userDetails = db("""SELECT userName, userPassword, userEmail FROM user WHERE userID = ?;""", (session['userID'],))
+    name, password, email = userDetails[0]
+    return render_template('configuration.html', name=name, password=password, email=email)
 
-def automation_Time():
+def automation_Thread(startTime, interval, agentID):
+    task = Thread(target=automation_Time, args=(startTime, interval, agentID), daemon=True)
+    task.start()
+
+def automation_Time(startTime, interval, agentID):
 
 
 
@@ -220,7 +236,10 @@ if __name__ == '__main__':
     t.daemon = True
     # Start the flask app in the background and then the code beneath this can run at the same time
     t.start()
-    
+
+    t1 = Thread(target=automation_Time)
+    t1.daemon = True
+
     # Define the webview configuration
     window = webview.create_window(
         'Bit Scrape',

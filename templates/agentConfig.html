@@ -13,6 +13,7 @@
         <input type="text" id="newAgent-name" name="newAgent-name" placeholder="New Name" value="{{ name }}">
         <input type="text" id="newAgent-link" name="newAgent-link" placeholder="New Link" value="{{ link }}">
         <input type="text" id="newAgent-selector" name="newAgent-selector" placeholder="New Selector" value="{{ selector }}">
+        <input type="number" id="scrapeInterval" name="scrapeInterval" min="1" max="24" step="1" placeholder="Scrape Interval" value="{{ interval }}" required>
         <input type="submit" formaction="/agentConfig" value="Save">
         <div class="create-row">
             <button type="submit" formaction="/agentDelete" class="create-btn">Delete Agent</button>
