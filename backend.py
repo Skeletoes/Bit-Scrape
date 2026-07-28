@@ -145,16 +145,20 @@ def agentCreate():
     if request.method == 'POST':
         agentName_input = request.form['agentName']
         webpageLink_input = request.form['webpageLink']
-        elementXpath_input = request.form['elementXpath']
+        elementSelector_input = request.form['elementSelector']
         scrapeInterval_input = request.form['scrapeInterval']
         with sync_playwright() as p:
             try:
                 browser = p.chromium.launch()
                 page = browser.new_page()
-                page.goto(webpageLink_input)
+                page.goto(webpageLink_input)                
+                try:
+                    page.wait_for_selector(f"{elementSelector_input}", timeout=10000)
+                except Exception as wait_err:
+                    print(f"Selector not found: {wait_err}")
                 # Give the screen shot a temporary name, will delete after the image is opened
                 page.screenshot(path="tmpImg.png")
-                price_element = page.locator(f"xpath={elementXpath_input}")
+                price_element = page.locator(f"{elementSelector_input}")
                 price_text = price_element.text_content()
                 print(f"Current price: {price_text}")
                 browser.close()
@@ -166,7 +170,7 @@ def agentCreate():
                     db("""INSERT INTO scraperAgent (userID, scraperName, webPageURL, scrapeInterval, elementXPath) VALUES (?, ?, ?, ?, ?);""", (session['userID'], agentName_input, webpageLink_input, scrapeInterval_input, elementXpath_input))
                     agentID = db("""SELECT scraperID FROM scraperAgent WHERE userID = ? AND scraperName = ?;""", (session['userID'], agentName_input))
                     agentID = agentID[0][0]
-                    ("""INSERT INTO scrapeData (scraperID, scrapeValue, scrapeTime, elementXPath) VALUES (?, ?, ?, ?);""", (agentID, price_text, datetime.datetime.now(), elementXpath_input))
+                    ("""INSERT INTO scrapeData (scraperID, scrapeValue, scrapeTime, elementXPath) VALUES (?, ?, ?, ?);""", (agentID, price_text, datetime.datetime.now(), elementSelector_input))
                     return redirect(url_for('home'))
                 else:
                     flash("That scraper agent name is already in use.")
