@@ -53,15 +53,9 @@ def login():
             # If the user credentials are correct then redirect the user to home
             session['userID'] = userData[0][0]
             userAgents = db("""SELECT scraperID, scrapeInterval FROM scraperAgent WHERE userID = ?;""", (session['userID'],))
-            if userAgents:
-                        agent_intervals = {
-                            scraper_id: scrape_interval
-                            for scraper_id, scrape_interval in userAgents
-                        }
-
-            session['startTime'] = time.time()
-            session['scrapeInterval'] = userData[0][5]
-
+            if userAgents: # Check if the user actuall has any scraper agents
+                for i in userAgents: # Go through the list of scraper agents and start a thread for each scraper agent to run in the background
+                    automation_Thread(i[1], i[0], session['userID'])
             return redirect(url_for('home'))
     return render_template('login.html')
 
@@ -145,7 +139,7 @@ def agentConfig():
         else:
             print("Scraper agent selector was not changed.")
         if scrapeInterval:
-            db("""UPDATE user SET scrapeInterval = ? WHERE userID = ?;""", (scrapeInterval, session['userID'],))
+            db("""UPDATE scraperAgent SET scrapeInterval = ? WHERE userID = ?;""", (scrapeInterval, session['userID'],))
         return redirect(url_for('home'))
     agentDetails = db("""SELECT scraperName, webPageURL, elementSelector, scrapeInterval FROM scraperAgent WHERE scraperID = ?;""", (session['scraperID'],))
     name, link, selector, interval = agentDetails[0]
@@ -182,6 +176,7 @@ def agentCreate():
                     agentID = db("""SELECT scraperID FROM scraperAgent WHERE userID = ? AND scraperName = ?;""", (session['userID'], agentName_input))
                     agentID = agentID[0][0]
                     db("""INSERT INTO scrapeData (userID, scraperID, scrapeValue, scrapeTime, elementSelector) VALUES (?, ?, ?, ?, ?);""", (session['userID'], agentID, price_text, datetime.datetime.now(), elementSelector_input))
+                    automation_Thread(scrapeInterval, agentID, session['userID'])
                     return redirect(url_for('home'))
                 else:
                     flash("That scraper agent name is already in use.")
@@ -218,11 +213,69 @@ def configure():
     name, password, email = userDetails[0]
     return render_template('configuration.html', name=name, password=password, email=email)
 
-def automation_Thread(startTime, interval, agentID):
-    task = Thread(target=automation_Time, args=(startTime, interval, agentID), daemon=True)
+def automation_Thread(interval, agentID, userID):
+    task = Thread(target=automation_Time, args=(interval, agentID, userID), daemon=True)
     task.start()
 
-def automation_Time(startTime, interval, agentID):
+def automation_Time(interval, agentID, userID):
+    agentData = db("""SELECT webPageURL, elementSelector FROM scraperAgent WHERE scraperID = ?;""", (agentID,))
+    link, selector = agentData[0]
+    hours = int(interval) * 10 # Set the interval low for testing purposes
+    while True: # Start the loop to do the timely checks
+        scrapeValue = automation_Scrape(link, selector)
+        db("""INSERT INTO scrapeData (userID, scraperID, scrapeTime, scrapeValue, elementSelector) VALUES (?, ?, ?, ?, ?);""", (userID, agentID, datetime.datetime.now(), scrapeValue, selector,))
+        automation_Email(userID)
+        time.sleep(hours)
+
+def automation_Scrape(link, selector):
+    with sync_playwright() as p:
+        try:
+            browser = p.chromium.launch()
+            page = browser.new_page()
+            page.goto(link)                
+            try:
+                page.wait_for_selector(f"{selector}", timeout=10000)
+            except Exception as wait_err:
+                print(f"Selector not found: {wait_err}")
+            price_element = page.locator(f"{selector}")
+            price_text = price_element.text_content()
+            browser.close()
+            return(price_text)
+        except Exception as e:
+            return str(e)
+
+def automation_Email(userID):
+    listOf_changes = []
+    scrapeData = db("""SELECT scraperID, scrapeValue FROM scrapeData WHERE userID = ?;""", (userID,))
+    
+
+
+"""import smtplib
+from email.mime.text import MIMEText
+
+# Email account credentials
+SENDER_EMAIL = "your_email@gmail.com"
+APP_PASSWORD = "your_app_password"  # Generated from Google Account > Security > App passwords
+RECEIVER_EMAIL = "recipient@example.com"
+
+# Email content
+subject = "Test Email"
+body = "Hello! This is a test email sent from Python."
+
+# Create MIMEText object
+msg = MIMEText(body)
+msg["Subject"] = subject
+msg["From"] = SENDER_EMAIL
+msg["To"] = RECEIVER_EMAIL
+
+try:
+    # Connect to Gmail's SMTP server
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        server.login(SENDER_EMAIL, APP_PASSWORD)
+        server.send_message(msg)
+    print("Email sent successfully!")
+except Exception as e:
+    print(f"Error: {e}")"""
 
 
 
@@ -236,9 +289,6 @@ if __name__ == '__main__':
     t.daemon = True
     # Start the flask app in the background and then the code beneath this can run at the same time
     t.start()
-
-    t1 = Thread(target=automation_Time)
-    t1.daemon = True
 
     # Define the webview configuration
     window = webview.create_window(
