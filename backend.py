@@ -7,6 +7,8 @@ from PIL import Image
 import datetime
 import time
 import os
+import smtplib
+from email.mime.text import MIMEText
 
 
 
@@ -223,8 +225,9 @@ def automation_Time(interval, agentID, userID):
     hours = int(interval) * 10 # Set the interval low for testing purposes
     while True: # Start the loop to do the timely checks
         scrapeValue = automation_Scrape(link, selector)
+        prevVal = db("""SELECT scrapeValue FROM scrapeData WHERE scraperID = ? ORDER BY scrapeID DESC LIMIT 1;""", (agentID,))
         db("""INSERT INTO scrapeData (userID, scraperID, scrapeTime, scrapeValue, elementSelector) VALUES (?, ?, ?, ?, ?);""", (userID, agentID, datetime.datetime.now(), scrapeValue, selector,))
-        automation_Email(userID)
+        automation_Email(prevVal, scrapeValue, agentID, userID)
         time.sleep(hours)
 
 def automation_Scrape(link, selector):
@@ -244,38 +247,44 @@ def automation_Scrape(link, selector):
         except Exception as e:
             return str(e)
 
-def automation_Email(userID):
-    listOf_changes = []
-    scrapeData = db("""SELECT scraperID, scrapeValue FROM scrapeData WHERE userID = ?;""", (userID,))
+def automation_Email(prevVal, curVal, agentID, userID):
+    if curVal != prevVal:
+        userDetails = db("""SELECT userName, userEmail FROM user WHERE userID = ?;""", (userID,))
+        username, email = userDetails[0]
+        agentDetails = db("""SELECT scraperName, webPageURL FROM scraperAgent WHERE scraperID = ?;""", (agentID,))
+        agentName, scrapeLink = agentDetails[0]
+
+        # Email account credentials
+        SENDER_EMAIL = "carbonactual103@gmail.com"
+        APP_PASSWORD = "lhhc lvho wakg ifpf"  # Generated from Google Account > Security > App passwords
+        RECEIVER_EMAIL = email
+
+        # Email content
+        subject = f"Agent-{agentName} detected a change from {scrapeLink}"
+        body = f"Hello {username}, agent-{agentName} detected a change from {scrapeLink}. Previous value = {prevVal} and Current value = {curVal}."
+
+        # Create MIMEText object
+        msg = MIMEText(body)
+        msg["Subject"] = subject
+        msg["From"] = SENDER_EMAIL
+        msg["To"] = RECEIVER_EMAIL
+
+        try:
+            # Connect to Gmail's SMTP server
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+                server.login(SENDER_EMAIL, APP_PASSWORD)
+                server.send_message(msg)
+            print("Email sent successfully!")
+        except Exception as e:
+            print(f"Error: {e}")
+        
+
     
 
 
-"""import smtplib
-from email.mime.text import MIMEText
 
-# Email account credentials
-SENDER_EMAIL = "your_email@gmail.com"
-APP_PASSWORD = "your_app_password"  # Generated from Google Account > Security > App passwords
-RECEIVER_EMAIL = "recipient@example.com"
 
-# Email content
-subject = "Test Email"
-body = "Hello! This is a test email sent from Python."
 
-# Create MIMEText object
-msg = MIMEText(body)
-msg["Subject"] = subject
-msg["From"] = SENDER_EMAIL
-msg["To"] = RECEIVER_EMAIL
-
-try:
-    # Connect to Gmail's SMTP server
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(SENDER_EMAIL, APP_PASSWORD)
-        server.send_message(msg)
-    print("Email sent successfully!")
-except Exception as e:
-    print(f"Error: {e}")"""
 
 
 
