@@ -9,11 +9,16 @@ import time
 import os
 import smtplib
 from email.mime.text import MIMEText
+from functools import wraps
+from werkzeug.security import generate_password_hash, check_password_hash
+from dotenv import load_dotenv
 
+
+load_dotenv()
 
 
 app = Flask(__name__)
-app.secret_key = "qa567-KLu8T-ZgD45-9sdfg-1234"
+app.secret_key = os.environ.get("FLASK_SECRET_KEY")
 
 
 # The all in one database access/control function that will handle all the web apps database needs
@@ -34,32 +39,57 @@ def db(query, params=()):
     return results
 
 
+# The function that verifies that users are actually logged in and not able to visit each page via their route
+def login_required(f): # f is the route function such as home or configuration
+    @wraps(f)
+    def decorated_function(*args, **kwargs): # Function when a user visits any of the routes and can pass on the arguments from any previous routes that call the other route
+        if 'userID' not in session: # Check if the user is actually logged in
+            flash('Please log in to continue.')
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+@app.errorhandler(404) # Handler for flask page not found errors
+def page_not_found(e):
+    return render_template('404.html'), 404
+
+@app.route('/error')
+def error(errorMessage):
+    render_template('error.html', errorMessage=errorMessage)
+
+
 @app.route('/')
 def index():
     session.clear()
     return redirect(url_for('login'))
 
+
 # Must use 'POST' and 'GET' because 'GET' is required for the url redirection from index to login
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if request.method == 'POST':
-        # Fetch the data from the form and add it to session variables
-        session['userName'] = request.form['username']
-        session['userPassword'] = request.form['password']
+    try:
+        if request.method == 'POST':
+            # Fetch the data from the form and add it to session variables
+            usernameInput = request.form['username']
+            passwordInput = request.form['password']
 
-        # Check if the user credentials are in the database
-        userData = db('SELECT * FROM user WHERE userName = ? AND userPassword = ?;', (session['userName'], session['userPassword']))
-        if not userData:
-            flash('Credentials are incorrect')
-        else:
-            # If the user credentials are correct then redirect the user to home
-            session['userID'] = userData[0][0]
-            userAgents = db("""SELECT scraperID, scrapeInterval FROM scraperAgent WHERE userID = ?;""", (session['userID'],))
-            if userAgents: # Check if the user actuall has any scraper agents
-                for i in userAgents: # Go through the list of scraper agents and start a thread for each scraper agent to run in the background
-                    automation_Thread(i[1], i[0], session['userID'])
-            return redirect(url_for('home'))
-    return render_template('login.html')
+            # Check if the user credentials are in the database
+            userData = db("""SELECT * FROM user WHERE userName = ?;""", (usernameInput,))
+            if not userData or not check_password_hash(userData[0][2], passwordInput):
+                flash('Credentials are incorrect')
+            else:
+                # If the user credentials are correct then redirect the user to home
+                session['userID'] = userData[0][0]
+                userAgents = db("""SELECT scraperID, scrapeInterval FROM scraperAgent WHERE userID = ?;""", (session['userID'],))
+                if userAgents: # Check if the user actuall has any scraper agents
+                    for i in userAgents: # Go through the list of scraper agents and start a thread for each scraper agent to run in the background
+                        automation_Thread(i[1], i[0], session['userID'])
+                return redirect(url_for('home'))
+        return render_template('login.html')
+    except Exception as e:
+        
+
 
 @app.route('/accountCreate', methods=['POST', 'GET'])
 def accountCreate():
@@ -75,7 +105,8 @@ def accountCreate():
             userCheck = db("SELECT * FROM user WHERE userName = ? OR userEmail = ?;", (usernameInput, emailInput))
             # If the username or email is not in the database then add the user credentials
             if not userCheck:
-                db("INSERT INTO user (userName, userPassword, userEmail) VALUES (?, ?, ?);", (usernameInput, passwordInput, emailInput))
+                hashedPassword = generate_password_hash(passwordInput) # Generate a password hash to keep the users password is secure
+                db("INSERT INTO user (userName, userPassword, userEmail) VALUES (?, ?, ?);", (usernameInput, hashedPassword, emailInput))
                 # Redirect the user to the login page so they can login with their newly created account
                 return redirect(url_for('login'))
             else:
@@ -86,13 +117,15 @@ def accountCreate():
     return render_template('accountCreate.html')
 
 
-
 @app.route('/home')
+@login_required
 def home():
     scraperAgents = db("""SELECT scraperName FROM scraperAgent WHERE userID = ?;""", (session['userID'], ))
     return render_template('home.html', agents=[row[0] for row in scraperAgents])
 
+
 @app.route('/agentSelect', methods=['POST', 'GET'])
+@login_required
 def agentSelect():
     if request.method == 'POST':
         agentName = request.form['agentName']
@@ -100,14 +133,18 @@ def agentSelect():
         session['scraperID'] = agent[0][0]
     return redirect(url_for('agentConfig'))
 
+
 @app.route('/agentDelete', methods=['POST', 'GET'])
+@login_required
 def agentDelete():
     if request.method == 'POST':
         db("""DELETE FROM scrapeData WHERE scraperID =?;""", (session['scraperID'],))
         db("""DELETE FROM scraperAgent WHERE scraperID = ?;""", (session['scraperID'],))
     return redirect(url_for('home'))
 
+
 @app.route('/userDelete', methods=['POST', 'GET'])
+@login_required
 def userDelete():
     if request.method == 'POST':
         db("""DELETE FROM scrapeData WHERE userID = ?;""", (session['userID'],))
@@ -115,7 +152,9 @@ def userDelete():
         db("""DELETE FROM user WHERE userID = ?;""", (session['userID'],))
     return redirect(url_for('index'))
 
+
 @app.route('/agentConfig', methods=['POST', 'GET'])
+@login_required
 def agentConfig():
     if request.method == 'POST':
         userAgents_names = db("""SELECT scraperName FROM scraperAgent WHERE userID = ?;""", (session['userID'],))
@@ -147,7 +186,9 @@ def agentConfig():
     name, link, selector, interval = agentDetails[0]
     return render_template('agentConfig.html', name=name, link=link, selector=selector, interval=interval)
 
+
 @app.route('/agentCreate', methods=['POST', 'GET'])
+@login_required
 def agentCreate():
     if request.method == 'POST':
         agentName_input = request.form['agentName']
@@ -188,8 +229,8 @@ def agentCreate():
     return render_template('agentCreate.html')
 
 
-
 @app.route('/configure', methods=['POST', 'GET'])
+@login_required
 def configure():
     if request.method == 'POST':
         newUsername = request.form['newUsername']
@@ -201,7 +242,8 @@ def configure():
             else:
                 print('User did not change username.')
             if newPassword:
-                db("""UPDATE user SET userPassword = ? WHERE userID = ?;""", (newPassword, session['userID']))
+                hashedPassword = generate_password_hash(newPassword)
+                db("""UPDATE user SET userPassword = ? WHERE userID = ?;""", (hashedPassword, session['userID']))
             else:
                 print('User did not change password.')
             if newEmail:
@@ -211,13 +253,15 @@ def configure():
             return redirect(url_for('home'))
         except Exception as e:
             print(e)
-    userDetails = db("""SELECT userName, userPassword, userEmail FROM user WHERE userID = ?;""", (session['userID'],))
-    name, password, email = userDetails[0]
-    return render_template('configuration.html', name=name, password=password, email=email)
+    userDetails = db("""SELECT userName, userEmail FROM user WHERE userID = ?;""", (session['userID'],))
+    name, email = userDetails[0]
+    return render_template('configuration.html', name=name email=email)
+
 
 def automation_Thread(interval, agentID, userID):
     task = Thread(target=automation_Time, args=(interval, agentID, userID), daemon=True)
     task.start()
+
 
 def automation_Time(interval, agentID, userID):
     agentData = db("""SELECT webPageURL, elementSelector FROM scraperAgent WHERE scraperID = ?;""", (agentID,))
@@ -227,8 +271,9 @@ def automation_Time(interval, agentID, userID):
         scrapeValue = automation_Scrape(link, selector)
         prevVal = db("""SELECT scrapeValue FROM scrapeData WHERE scraperID = ? ORDER BY scrapeID DESC LIMIT 1;""", (agentID,))
         db("""INSERT INTO scrapeData (userID, scraperID, scrapeTime, scrapeValue, elementSelector) VALUES (?, ?, ?, ?, ?);""", (userID, agentID, datetime.datetime.now(), scrapeValue, selector,))
-        automation_Email(prevVal, scrapeValue, agentID, userID)
+        automation_Email(prevVal[0][0], scrapeValue, agentID, userID)
         time.sleep(hours)
+
 
 def automation_Scrape(link, selector):
     with sync_playwright() as p:
@@ -247,21 +292,27 @@ def automation_Scrape(link, selector):
         except Exception as e:
             return str(e)
 
+
 def automation_Email(prevVal, curVal, agentID, userID):
-    if curVal != prevVal:
+    if curVal != prevVal: # Check if there is a difference between the previous and current values.
         userDetails = db("""SELECT userName, userEmail FROM user WHERE userID = ?;""", (userID,))
         username, email = userDetails[0]
         agentDetails = db("""SELECT scraperName, webPageURL FROM scraperAgent WHERE scraperID = ?;""", (agentID,))
         agentName, scrapeLink = agentDetails[0]
 
         # Email account credentials
-        SENDER_EMAIL = "carbonactual103@gmail.com"
-        APP_PASSWORD = "lhhc lvho wakg ifpf"  # Generated from Google Account > Security > App passwords
+        SENDER_EMAIL = os.environ.get("SENDER_EMAIL")
+        APP_PASSWORD = os.environ.get("APP_PASSWORD")  # Generated from Google Account > Security > App passwords
         RECEIVER_EMAIL = email
 
         # Email content
-        subject = f"Agent-{agentName} detected a change from {scrapeLink}"
-        body = f"Hello {username}, agent-{agentName} detected a change from {scrapeLink}. Previous value = {prevVal} and Current value = {curVal}."
+        subject = f"Agent-{agentName} detected a change"
+        body = (
+            f"Hello {username}, \n\n"
+            f"Agent-{agentName} detected a change from {scrapeLink}.\n\n"
+            f"Previous value = {prevVal}.\n"
+            f"Current value = {curVal}.\n"
+        )
 
         # Create MIMEText object
         msg = MIMEText(body)
@@ -279,17 +330,9 @@ def automation_Email(prevVal, curVal, agentID, userID):
             print(f"Error: {e}")
         
 
-    
-
-
-
-
-
-
-
-
 def run_flask():
     app.run(port=8000)
+
 
 if __name__ == '__main__':
     # Create the variable 't' so the flask app runs on a seperate thread

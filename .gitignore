@@ -1,0 +1,17 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Database
+database.db
+
+# Temp files
+tmpImg.png
+
+# OS/editor junk
+.vscode/
+.DS_Store
