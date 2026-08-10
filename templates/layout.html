@@ -10,6 +10,16 @@
 </head>
 <body>
 
+    <div class="flash-messages">
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="flash">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+
     {% block body %}{% endblock %}
 
     <div class="logo-background"></div>
