@@ -23,6 +23,10 @@ from dotenv import load_dotenv
 from invisible_playwright import InvisiblePlaywright
 
 
+import sys
+import subprocess
+
+
 load_dotenv()
 
 
@@ -30,10 +34,43 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY")
 
 
+def resource_path(relative_path):
+    """Get absolute path to a bundled resource, works both in dev and in the built exe."""
+    try:
+        base_path = sys._MEIPASS
+    except AttributeError:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
+
+def ensure_engine_available():
+    """Check if invisible_playwright's engine is cached; fetch it if not."""
+    try:
+        from invisible_playwright import InvisiblePlaywright
+        with InvisiblePlaywright() as browser:
+            browser.close()
+        return True
+    except Exception:
+        print("First run: downloading scraper engine, this may take a minute...")
+        try:
+            from invisible_playwright import cli as ip_cli
+            ip_cli.main(['fetch'])  # verify this matches the actual entry point in cli.py
+            return True
+        except Exception as e:
+            print(f"Engine download failed: {e}")
+            return False
+
+
+if getattr(sys, 'frozen', False):
+    app_dir = os.path.dirname(sys.executable)
+else:
+    app_dir = os.path.abspath(".")
+DB_PATH = os.path.join(app_dir, 'database.db')
+
+
 # The all in one database access/control function that will handle all the web apps database needs
 def db(query, params=()):
     # Create the connection to the database file
-    conn = sqlite3.connect('database.db')
+    conn = sqlite3.connect(DB_PATH)
     # Create the cursor which will handle queries
     cursor = conn.cursor()
     # Execute the query and use the parameters
@@ -64,7 +101,7 @@ def page_not_found(e):
     return render_template('404.html'), 404
 
 
-def error(errorMessage):
+def error(errorMessage): # Error page handler
     return render_template('error.html', errorMessage=errorMessage)
 
 
@@ -138,7 +175,7 @@ def home():
         return error(e)
 
 
-@app.route('/agentSelect', methods=['POST', 'GET'])
+@app.route('/agentSelect', methods=['POST', 'GET']) # get the name of the agent that was selected and pass it on to the agent config function
 @login_required
 def agentSelect():
     try:
@@ -151,7 +188,7 @@ def agentSelect():
         return error(e)
 
 
-@app.route('/agentDelete', methods=['POST', 'GET'])
+@app.route('/agentDelete', methods=['POST', 'GET']) # Function for agent deletion
 @login_required
 def agentDelete():
     try:
@@ -163,7 +200,7 @@ def agentDelete():
         return error(e)
 
 
-@app.route('/userDelete', methods=['POST', 'GET'])
+@app.route('/userDelete', methods=['POST', 'GET']) # Function to delete user account
 @login_required
 def userDelete():
     try:
@@ -176,7 +213,7 @@ def userDelete():
         return error(e)
 
 
-@app.route('/agentConfig', methods=['POST', 'GET'])
+@app.route('/agentConfig', methods=['POST', 'GET']) # Function to configure a scraper agent
 @login_required
 def agentConfig():
     try:
@@ -391,5 +428,5 @@ if __name__ == '__main__':
         # Set resizable to false so that the window can not be resized at all
         resizable=False
     )
-    webview.start(icon='static/images/BitScrapeLogo.ico', gui='edgechromium')
+    webview.start(icon=resource_path('static/images/BitScrapeLogo.ico'), gui='edgechromium')
     # Start the application window

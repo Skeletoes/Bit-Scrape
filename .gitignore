@@ -12,11 +12,10 @@ database.db
 # Temp files
 tmpImg.png
 
-# Crawlee
-storage/
-
 # OS/editor junk
 .vscode/
 .DS_Store
+
+executableSetup.txt
 
 
