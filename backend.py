@@ -2,13 +2,13 @@
 from flask import Flask, render_template, session, redirect, url_for, request, flash
 import sqlite3
 import webview
-from threading import Thread
+from threading import Thread, Event
+import threading
 import os
 
 # Very useful libraries for the little features of the app
 from PIL import Image
 import datetime
-import time
 
 # Libraries for sending emails
 import smtplib
@@ -20,39 +20,39 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 
 # Web scraper libraries
-from invisible_playwright import InvisiblePlaywright
+from invisible_playwright import InvisiblePlaywright, cli as ip_cli
 
 
 import sys
 import subprocess
 
-
-load_dotenv()
+# Set important global variables
+load_dotenv() # Connect to the .env file with all the important secret values
+running_agents = {} # A dict that stores the states of each threaded agent and is used to stop threaded agents
+playwright_lock = threading.Lock() # Helps prevent agent create from failing if there is a automated scrape running at the moment of creation
 
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY")
 
-
+# This function helps the .exe find the files needed for the app while it runs
 def resource_path(relative_path):
-    """Get absolute path to a bundled resource, works both in dev and in the built exe."""
     try:
-        base_path = sys._MEIPASS
+        base_path = sys._MEIPASS # Temporary extraction folder created by the .exe on every startup
     except AttributeError:
-        base_path = os.path.abspath(".")
-    return os.path.join(base_path, relative_path)
+        base_path = os.path.abspath(".") # File path falls back to normal when .py is run during dev
+    return os.path.join(base_path, relative_path) # Ends up joining the relative path to the base path whether the .py was run or the .exe was run
 
+
+# This function checks and handles the installation of the invisible palywright on another users device because pyinstaller does not package it with the .exe
 def ensure_engine_available():
-    """Check if invisible_playwright's engine is cached; fetch it if not."""
-    try:
-        from invisible_playwright import InvisiblePlaywright
+    try: # Check if the browser ius installed and works
         with InvisiblePlaywright() as browser:
             browser.close()
         return True
-    except Exception:
+    except Exception: # Install invisible playwright
         print("First run: downloading scraper engine, this may take a minute...")
         try:
-            from invisible_playwright import cli as ip_cli
             ip_cli.main(['fetch'])  # verify this matches the actual entry point in cli.py
             return True
         except Exception as e:
@@ -103,6 +103,18 @@ def page_not_found(e):
 
 def error(errorMessage): # Error page handler
     return render_template('error.html', errorMessage=errorMessage)
+
+
+def get_selector_text(page, selector):
+    """Return the visible text for a selector and raise a clear error if it is missing."""
+    locator = page.locator(selector)
+    try:
+        if locator.count() == 0:
+            raise ValueError(f"No element matched selector: {selector}")
+        text = locator.first.text_content(timeout=10000)
+        return text.strip() if text else ""
+    except Exception as exc:
+        raise RuntimeError(f"Could not read text from selector '{selector}': {exc}") from exc
 
 
 @app.route('/')
@@ -188,30 +200,37 @@ def agentSelect():
         return error(e)
 
 
-@app.route('/agentDelete', methods=['POST', 'GET']) # Function for agent deletion
+@app.route('/agentDelete', methods=['POST', 'GET'])
 @login_required
 def agentDelete():
     try:
         if request.method == 'POST':
             db("""DELETE FROM scrapeData WHERE scraperID =?;""", (session['scraperID'],))
             db("""DELETE FROM scraperAgent WHERE scraperID = ?;""", (session['scraperID'],))
-        return redirect(url_for('home'))
+            stop_event = running_agents.get(session['scraperID'])
+            if stop_event:
+                stop_event.set()
+            return redirect(url_for('home'))
     except Exception as e:
         return error(e)
 
-
-@app.route('/userDelete', methods=['POST', 'GET']) # Function to delete user account
+@app.route('/userDelete', methods=['POST', 'GET'])
 @login_required
 def userDelete():
     try:
         if request.method == 'POST':
+            userAgentIDs = db("""SELECT scraperID FROM scraperAgent WHERE userID = ?;""", (session['userID'],))
+            for row in userAgentIDs:
+                stop_event = running_agents.get(row[0])
+                if stop_event:
+                    stop_event.set()
+
             db("""DELETE FROM scrapeData WHERE userID = ?;""", (session['userID'],))
             db("""DELETE FROM scraperAgent WHERE userID = ?;""", (session['userID'],))
             db("""DELETE FROM user WHERE userID = ?;""", (session['userID'],))
-        return redirect(url_for('index'))
+            return redirect(url_for('index'))
     except Exception as e:
         return error(e)
-
 
 @app.route('/agentConfig', methods=['POST', 'GET']) # Function to configure a scraper agent
 @login_required
@@ -259,35 +278,36 @@ def agentCreate():
             webpageLink_input = request.form['webpageLink']
             elementSelector_input = request.form['elementSelector']
             scrapeInterval = request.form['scrapeInterval']
-            with InvisiblePlaywright() as browser:
-                try:
-                    page = browser.new_page()
-                    page.goto(webpageLink_input)                
+            with playwright_lock:
+                with InvisiblePlaywright(headless=True) as browser:
                     try:
-                        page.wait_for_selector(f"{elementSelector_input}", timeout=10000)
-                    except Exception as wait_err:
-                        print(f"Selector not found: {wait_err}")
-                    # Give the screen shot a temporary name, will delete after the image is opened
-                    page.screenshot(path="tmpImg.png")
-                    price_element = page.locator(f"{elementSelector_input}")
-                    price_text = price_element.text_content()
-                    print(f"Current price: {price_text}")
-                    browser.close()
-                    img = Image.open("tmpImg.png")
-                    img.show()
-                    # Delete the screenshot
-                    os.remove("tmpImg.png")
-                    if not db("""SELECT * FROM scraperAgent WHERE scraperName = ?;""", (agentName_input, )):
-                        db("""INSERT INTO scraperAgent (userID, scraperName, webPageURL, elementSelector, scrapeInterval) VALUES (?, ?, ?, ?, ?);""", (session['userID'], agentName_input, webpageLink_input, elementSelector_input, scrapeInterval))
-                        agentID = db("""SELECT scraperID FROM scraperAgent WHERE userID = ? AND scraperName = ?;""", (session['userID'], agentName_input))
-                        agentID = agentID[0][0]
-                        db("""INSERT INTO scrapeData (userID, scraperID, scrapeValue, scrapeTime, elementSelector) VALUES (?, ?, ?, ?, ?);""", (session['userID'], agentID, price_text, datetime.datetime.now(), elementSelector_input))
-                        automation_Thread(scrapeInterval, agentID, session['userID'])
-                        return redirect(url_for('home'))
-                    else:
-                        flash("That scraper agent name is already in use.")
-                except Exception as e:
-                    flash("There was an error accessing that webpage")
+                        page = browser.new_page()
+                        page.goto(webpageLink_input)                
+                        try:
+                            page.wait_for_selector(f"{elementSelector_input}", timeout=10000)
+                        except Exception as wait_err:
+                            print(f"Selector not found: {wait_err}")
+                        # Give the screen shot a temporary name, will delete after the image is opened
+                        page.screenshot(path="tmpImg.png")
+                        price_text = get_selector_text(page, elementSelector_input)
+                        print(f"Current price: {price_text}")
+                        browser.close()
+                        img = Image.open("tmpImg.png")
+                        img.show()
+                        # Delete the screenshot
+                        os.remove("tmpImg.png")
+                        if not db("""SELECT * FROM scraperAgent WHERE scraperName = ?;""", (agentName_input, )):
+                            db("""INSERT INTO scraperAgent (userID, scraperName, webPageURL, elementSelector, scrapeInterval) VALUES (?, ?, ?, ?, ?);""", (session['userID'], agentName_input, webpageLink_input, elementSelector_input, scrapeInterval))
+                            agentID = db("""SELECT scraperID FROM scraperAgent WHERE userID = ? AND scraperName = ?;""", (session['userID'], agentName_input))
+                            agentID = agentID[0][0]
+                            db("""INSERT INTO scrapeData (userID, scraperID, scrapeValue, scrapeTime, elementSelector) VALUES (?, ?, ?, ?, ?);""", (session['userID'], agentID, price_text, datetime.datetime.now(), elementSelector_input))
+                            automation_Thread(scrapeInterval, agentID, session['userID'])
+                            return redirect(url_for('home'))
+                        else:
+                            flash("That scraper agent name is already in use.")
+                    except Exception as e:
+                        print(f"There was an error accessing that webpage: {e}")
+                        flash("There was an error accessing that webpage")
         return render_template('agentCreate.html')
     except Exception as e:
         return error(e)
@@ -327,41 +347,56 @@ def configure():
 
 def automation_Thread(interval, agentID, userID):
     try:
-        task = Thread(target=automation_Time, args=(interval, agentID, userID), daemon=True)
+        if agentID in running_agents:
+            return  # already running, don't start a duplicate
+        stop_event = Event()
+        running_agents[agentID] = stop_event
+        task = Thread(target=automation_Time, args=(interval, agentID, userID, stop_event), daemon=True)
         task.start()
     except Exception as e:
         return error(e)
 
-def automation_Time(interval, agentID, userID):
+def automation_Time(interval, agentID, userID, stop_event):
     try:
         agentData = db("""SELECT webPageURL, elementSelector FROM scraperAgent WHERE scraperID = ?;""", (agentID,))
+        if not agentData:
+            # Agent was deleted before this thread even got its first data — bail out cleanly
+            running_agents.pop(agentID, None)
+            return
         link, selector = agentData[0]
-        hours = int(interval) * 10 # Set the interval low for testing purposes
-        while True: # Start the loop to do the timely checks
+        hours = int(interval) * 3600  # Multiply the uscraper agent's set interval by 3600 seconds (1 hour)
+
+        while not stop_event.is_set():
             scrapeValue = automation_Scrape(link, selector)
             prevVal = db("""SELECT scrapeValue FROM scrapeData WHERE scraperID = ? ORDER BY scrapeID DESC LIMIT 1;""", (agentID,))
             db("""INSERT INTO scrapeData (userID, scraperID, scrapeTime, scrapeValue, elementSelector) VALUES (?, ?, ?, ?, ?);""", (userID, agentID, datetime.datetime.now(), scrapeValue, selector,))
-            automation_Email(prevVal[0][0], scrapeValue, agentID, userID)
-            time.sleep(hours)
+            if prevVal:  # guard against the very first scrape, where prevVal is empty
+                automation_Email(prevVal[0][0], scrapeValue, agentID, userID)
+
+            # stop_event.wait() sleeps for `hours` seconds, but returns immediately (True) if the event gets set,
+            # instead of time.sleep() which would block the full duration regardless
+            stop_event.wait(hours)
+
+        running_agents.pop(agentID, None)  # clean up once the loop actually exits
     except Exception as e:
         return error(e)
 
 def automation_Scrape(link, selector):
     try:
-        with InvisiblePlaywright(headless=True) as browser:
-            try:
-                page = browser.new_page()
-                page.goto(link)
+        with playwright_lock:
+            with InvisiblePlaywright(headless=True) as browser:
                 try:
-                    page.wait_for_selector(f"{selector}", timeout=10000)
-                except Exception as wait_err:
-                    print(f"Selector not found: {wait_err}")
-                price_element = page.locator(f"{selector}")
-                price_text = price_element.text_content()
-                browser.close()
-                return(price_text)
-            except Exception as e:
-                return str(e)
+                    page = browser.new_page()
+                    page.goto(link)
+                    try:
+                        page.wait_for_selector(f"{selector}", timeout=10000)
+                    except Exception as wait_err:
+                        print(f"Selector not found: {wait_err}")
+                    price_text = get_selector_text(page, selector)
+                    browser.close()
+                    return(price_text)
+                except Exception as e:
+                    return str(e)
     except Exception as e:
         return error(e)
 

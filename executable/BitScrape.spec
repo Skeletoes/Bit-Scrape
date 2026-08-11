@@ -1,5 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+
 from PyInstaller.utils.hooks import collect_data_files
 
 invisible_core_datas = collect_data_files('invisible_core')

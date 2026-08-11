@@ -6,9 +6,6 @@ __pycache__/
 *.pyc
 .venv/
 
-# Database
-database.db
-
 # Temp files
 tmpImg.png
 
