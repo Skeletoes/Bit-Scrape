@@ -9,6 +9,7 @@ import os
 # Very useful libraries for the little features of the app
 from PIL import Image
 import datetime
+import sys
 
 # Libraries for sending emails
 import smtplib
@@ -23,8 +24,7 @@ from dotenv import load_dotenv
 from invisible_playwright import InvisiblePlaywright, cli as ip_cli
 
 
-import sys
-import subprocess
+
 
 
 # This function helps the .exe find the files needed for the app while it runs
