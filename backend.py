@@ -26,14 +26,6 @@ from invisible_playwright import InvisiblePlaywright, cli as ip_cli
 import sys
 import subprocess
 
-# Set important global variables
-load_dotenv() # Connect to the .env file with all the important secret values
-running_agents = {} # A dict that stores the states of each threaded agent and is used to stop threaded agents
-playwright_lock = threading.Lock() # Helps prevent agent create from failing if there is a automated scrape running at the moment of creation
-
-
-app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY")
 
 # This function helps the .exe find the files needed for the app while it runs
 def resource_path(relative_path):
@@ -42,6 +34,16 @@ def resource_path(relative_path):
     except AttributeError:
         base_path = os.path.abspath(".") # File path falls back to normal when .py is run during dev
     return os.path.join(base_path, relative_path) # Ends up joining the relative path to the base path whether the .py was run or the .exe was run
+
+
+# Set important global variables
+load_dotenv(resource_path('.env')) # Connect to the .env file with all the important secret values
+running_agents = {} # A dict that stores the states of each threaded agent and is used to stop threaded agents
+playwright_lock = threading.Lock() # Helps prevent agent create from failing if there is a automated scrape running at the moment of creation
+
+
+app = Flask(__name__)
+app.secret_key = os.environ.get("FLASK_SECRET_KEY") or os.urandom(24)
 
 
 # This function checks and handles the installation of the invisible palywright on another users device because pyinstaller does not package it with the .exe
