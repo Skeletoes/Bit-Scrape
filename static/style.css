@@ -116,7 +116,7 @@ footer {
     padding: 15px;
     font-size: 19px;
     font-weight: bold;
-    background-color: #5e17eb;
+    background-color: #4B67F5;
     color: white;
     border: none;
     cursor: pointer;
@@ -125,7 +125,7 @@ footer {
 }
 
 .login-box input[type="submit"]:hover {
-    background-color: #38b6ff;
+    background-color: #5e17eb;
 }
 
 .create-row {
@@ -137,14 +137,14 @@ footer {
     padding: 7px 13px;
     font-size: 12px;
     font-weight: bold;
-    background-color: #5e17eb;
+    background-color: #4B67F5;
     color: white;
     border: none;
     cursor: pointer;
 }
 
 .create-btn:hover {
-    background-color: #38b6ff;
+    background-color: #5e17eb;
 }
 
 .agentCreate {
@@ -221,7 +221,7 @@ footer {
 }
 
 .agent-btn {
-    background-color: #5e17eb;
+    background-color: #4B67F5;
     border: none;
     color: white;
     padding: 11px 20px;
@@ -233,7 +233,8 @@ footer {
 }
 
 .agent-btn:hover {
-    background-color: #38b6ff;
+    background-color:#5e17eb;
+;
 }
 
 .agent-box p {

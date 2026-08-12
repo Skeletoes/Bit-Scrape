@@ -10,9 +10,9 @@
 
 <div class="login-box">
     <form method="POST" action="/agentCreate">
-        <input type="text" id="agentName" name="agentName" placeholder="Agent Name" required>
-        <input type="text" id="webpageLink" name="webpageLink" placeholder="Webpage Link" required>
-        <input type="text" id="elementSelector" name="elementSelector" placeholder="Element Selector" required>
+        <input type="text" id="agentName" name="agentName" placeholder="Agent Name" value="{{ name }}" required>
+        <input type="text" id="webpageLink" name="webpageLink" placeholder="Webpage Link" value="{{ link }}" required>
+        <input type="text" id="elementSelector" name="elementSelector" placeholder="Element Selector" {{ selector }} required>
         <input type="number" id="scrapeInterval" name="scrapeInterval" min="1" max="24" step="1" placeholder="Scrape Interval" value="{{ interval }}" required>
         <input type="submit" value="Create Agent">
     </form>
