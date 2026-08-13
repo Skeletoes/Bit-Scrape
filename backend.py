@@ -173,7 +173,7 @@ def accountCreate():
                 else:
                     flash('That username or email is already being used.')
             else:
-                flash('The username of password is not long enough. (5 to 20 characters!!!)')
+                flash('The username or password is not long enough. (5 to 20 characters!!!)')
         return render_template('accountCreate.html')
     except Exception as e:
         return error(e)
@@ -252,24 +252,20 @@ def agentConfig():
                         with InvisiblePlaywright(headless=True) as browser:
                             try:
                                 page = browser.new_page()
-                                page.goto(newAgent_link)                
-                                try:
-                                    page.wait_for_selector(f"{newAgent_link}", timeout=10000)
-                                except Exception as wait_err:
-                                    print(f"Selector not found: {wait_err}")
-                                # Give the screen shot a temporary name, will delete after the image is opened
+                                page.goto(newAgent_link)
                                 page.screenshot(path="tmpImg.png")
-                                price_text = get_selector_text(page, newAgent_selector)
-                                print(f"Current price: {price_text}")
-                                browser.close()
                                 img = Image.open("tmpImg.png")
                                 img.show()
                                 # Delete the screenshot
-                                os.remove("tmpImg.png")
+                                os.remove("tmpImg.png")              
+                                page.wait_for_selector(f"{newAgent_selector}", timeout=10000)
+                                # Give the screen shot a temporary name, will delete after the image is opened
+                                price_text = get_selector_text(page, newAgent_selector)
+                                print(f"Current price: {price_text}")
+                                browser.close()
                                 db("""UPDATE scraperAgent SET webPageURL = ? AND elementSelector = ? WHERE scraperID = ?;""", (newAgent_link, newAgent_selector, scraperID,))
                             except:
-                                flash("An error occured while trying to retrieve the data.")
-                                return render_template('agentConfig.html', name=newAgent_name, link=link, selector=selector, interval=scrapeInterval)
+                                return False
                 else:
                     flash('You are already monitoring that webpage element.')
                     return render_template('agentConfig.html', name=newAgent_name, link=link, selector=selector, interval=scrapeInterval)
@@ -285,13 +281,16 @@ def agentConfig():
                     return render_template('agentConfig.html', name=name, link=newAgent_link, selector=newAgent_selector, interval=scrapeInterval)
             if newAgent_link != link:
                 if newAgent_selector != selector:
-                    agentWebPage()
+                    if agentWebPage() == False:
+                        flash('An error occured while trying to scrape the data.')
                 else:
                     flash('You must change the element selector too if you change the web page link.')
                     return render_template('agentConfig.html', name=newAgent_name, link=newAgent_link, selector=selector, interval=interval)
             else:
                 if newAgent_selector != selector:
-                    agentWebPage()
+                    if agentWebPage() == False:
+                        flash('An error occured while trying to locate that selector.')
+                        return render_template('agentConfig.html', name=newAgent_name, link=link, selector=selector, interval=scrapeInterval)
             if scrapeInterval != interval:
                 db("""UPDATE scraperAgent SET scrapeInterval = ? WHERE scraperID = ?;""", (scrapeInterval, scraperID,))
             return redirect(url_for('home'))
@@ -352,29 +351,31 @@ def agentCreate():
 @login_required
 def configure():
     try:
+        userDetails = db("""SELECT userName, userEmail FROM user WHERE userID = ?;""", (session['userID'],))
+        name, email = userDetails[0]
         if request.method == 'POST':
             newUsername = request.form['newUsername']
             newPassword = request.form['newPassword']
             newEmail = request.form['newEmail']
             try:
-                if newUsername:
-                    db("""UPDATE user SET userName = ? WHERE userID = ?;""", (newUsername, session['userID']))
-                else:
-                    print('User did not change username.')
+                if newUsername != name:
+                    if not db("""SELECT * FROM user WHERE userName = ?;""", (newUsername,)):
+                        db("""UPDATE user SET userName = ? WHERE userID = ?;""", (newUsername, session['userID']))
+                    else:
+                        flash('That username is unavailable.')
+                        return render_template('configuration.html', name=name, email=newEmail)
                 if newPassword:
                     hashedPassword = generate_password_hash(newPassword)
                     db("""UPDATE user SET userPassword = ? WHERE userID = ?;""", (hashedPassword, session['userID']))
-                else:
-                    print('User did not change password.')
-                if newEmail:
-                    db("""UPDATE user SET userEmail = ? WHERE userID = ?;""", (newEmail, session['userID']))
-                else:
-                    print('User did not change email.')
+                if newEmail != email:
+                    if not db("""SELECT * FROM user WHERE userEmail = ?;""", (newEmail,)):
+                        db("""UPDATE user SET userEmail = ? WHERE userID = ?;""", (newEmail, session['userID']))
+                    else:
+                        flash('That email is unavailable.')
+                        return render_template('configuration.html', name=newUsername, email=email)
                 return redirect(url_for('home'))
             except Exception as e:
                 print(e)
-        userDetails = db("""SELECT userName, userEmail FROM user WHERE userID = ?;""", (session['userID'],))
-        name, email = userDetails[0]
         return render_template('configuration.html', name=name, email=email)
     except Exception as e:
         return error(e)
