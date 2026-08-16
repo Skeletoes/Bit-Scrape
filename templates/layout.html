@@ -23,7 +23,9 @@
 
     {% block body %}{% endblock %}
 
-    <div class="logo"></div>
+    <div class="logo">
+        <img src="{{ url_for('static', filename='images/BitScrapeLogo.png') }}" alt="Bit Scrape logo" class="logo-img">
+    </div>
 
     <div class="logo-background"></div>
 

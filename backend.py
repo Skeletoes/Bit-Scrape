@@ -220,8 +220,15 @@ def accountCreate():
 @login_required
 def home():
     try:
-        scraperAgents = db("""SELECT scraperName FROM scraperAgent WHERE userID = ?;""", (session['userID'], ))
-        return render_template('home.html', agents=[row[0] for row in scraperAgents])
+        scraperDetails = db("""SELECT scraperName, webPageURL FROM scraperAgent WHERE userID = ?;""", (session['userID'], ))
+        agents = [
+            {
+                'name': row[0],
+                'url': row[1]
+            }
+            for row in scraperDetails
+        ]
+        return render_template('home.html', agents=agents)
     except Exception as e:
         return error(e)
 

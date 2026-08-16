@@ -16,16 +16,18 @@
     <a href="/configure"><button type="button" class="configure-btn"><i class="material-icons">perm_identity</i></button></a>
 </div>
 
-<form action="/default" method="POST">
-    <div class="agent-list">
-        {% for agent in agents %}
-            <div class="agent-box">
-                <p>{{ agent }}</p>
-                <button type="submit" class="agent-btn" name="agentName" formaction="/agentSelect" value="{{ agent }}"><i class="material-icons">settings</i></button>
-            </div>
-        {% endfor %}
-    </div>
-</form>
+<div class="agent-list">
+    {% for agent in agents %}
+        <div class="agent-box">
+            <a href="{{ agent.url }}" target="_blank" rel="noopener noreferrer" class="agent-link">{{ agent.name }}</a>
 
+            <form action="{{ url_for('agentSelect') }}" method="POST" class="agent-settings-form">
+                <button type="submit" class="agent-btn" name="agentName" value="{{ agent.name }}">
+                    <i class="material-icons">settings</i>
+                </button>
+            </form>
+        </div>
+    {% endfor %}
+</div>
 
 {% endblock %}
