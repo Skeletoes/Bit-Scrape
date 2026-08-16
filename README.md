@@ -5,7 +5,7 @@ Bit Scrape is a desktop web-scraping app built with **Flask** and **pywebview**.
 ## Download
 
 - **Download the standalone app** _ The link below will direct you to the google drive where you can download the standalone app from
-    https://drive.google.com/drive/folders/1WntA-KzPkmsmQVPjeA6BybWKyJfPMFJE?usp=drive_link
+    https://drive.google.com/drive/folders/1JvxvSM3PtyasFd53cposwT6CkR47BLEN?usp=drive_link
 
 ## Features
 
