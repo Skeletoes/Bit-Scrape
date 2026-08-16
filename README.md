@@ -2,6 +2,11 @@
 
 Bit Scrape is a desktop web-scraping app built with **Flask** and **pywebview**. It lets you create "scraper agents" that watch a specific element on a webpage (like a product price) at a set interval, log every value it sees, and email you when the value changes.
 
+## Download
+
+- **Download the standalone app** _ The link below will direct you to the google drive where you can download the standalone app from
+    https://drive.google.com/drive/folders/1WntA-KzPkmsmQVPjeA6BybWKyJfPMFJE?usp=drive_link
+
 ## Features
 
 - **User accounts** – sign up, log in, and update your username/password/email
