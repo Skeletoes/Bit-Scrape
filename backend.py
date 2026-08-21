@@ -45,6 +45,7 @@ loadStatus = {}
 
 
 app = Flask(__name__)
+# Set the flask secret app key to the the one stored secretly  or just generate a random one if the secret file cannot be found
 app.secret_key = os.environ.get("FLASK_SECRET_KEY") or os.urandom(24)
 
 
@@ -115,14 +116,15 @@ def index():
     return redirect(url_for('login'))
 
 
+# Function is polled by he loading page JS amd check the loading state which is stored in the dict
 @app.route('/loadCheck')
 def loadCheck():
     loadID = session.get('loadID')
     nextPage = session.get('nextPage')
-    if loadStatus.get(loadID) == 'error':
+    if loadStatus.get(loadID) == 'error': # If an error occured while loading then  flash an error message
         flash('An error occured while trying to perform the most recent requested action.')
         return redirect(url_for('home'))
-    if loadStatus.get(loadID) is True:
+    if loadStatus.get(loadID) is True: # If loading is complete then redirect to next page
         return redirect(url_for(nextPage))
     else:
         return render_template('loadingPage.html')  # keep waiting, page refreshes itself again
@@ -130,6 +132,7 @@ def loadCheck():
 
 # Must use 'POST' and 'GET' because 'GET' is required for the url redirection from index to login
 @app.route('/login', methods=['GET', 'POST'])
+# The login funcion
 def login():
     try:
         if request.method == 'POST':
@@ -149,7 +152,7 @@ def login():
                 loadStatus[userID] = False
                 session['loadID'] = random.randint(1, 100)
                 loadID = session['loadID']
-
+                # Display the loading page while the backend sets up the scraper agent threads
                 def loading(userID, loadID):
                     try:
                         userAgents = db("""SELECT scraperID, scrapeInterval FROM scraperAgent WHERE userID = ?;""", (userID,))
@@ -251,15 +254,15 @@ def agentDelete():
 
 @app.route('/userDelete', methods=['POST', 'GET'])
 @login_required
-def userDelete():
+def userDelete(): # User account deletion
     try:
         if request.method == 'POST':
             userAgentIDs = db("""SELECT scraperID FROM scraperAgent WHERE userID = ?;""", (session['userID'],))
-            for row in userAgentIDs:
+            for row in userAgentIDs: # Stop users scraper agent threads when they delete their account
                 stop_event = running_agents.get(row[0])
                 if stop_event:
                     stop_event.set()
-
+            # Delete all of the users details
             db("""DELETE FROM scrapeData WHERE userID = ?;""", (session['userID'],))
             db("""DELETE FROM scraperAgent WHERE userID = ?;""", (session['userID'],))
             db("""DELETE FROM user WHERE userID = ?;""", (session['userID'],))
@@ -300,7 +303,7 @@ def agentConfig():
                     session['nextPage'] = 'home'
                     def loading(loadID, newAgent_link, newAgent_selector, scraperID,):
                         with playwright_lock:
-                            with InvisiblePlaywright(headless=True) as browser:
+                            with InvisiblePlaywright(headless=True) as browser: # Scrape website and fetch the requested value
                                 try:
                                     page = browser.new_page()
                                     page.goto(newAgent_link)
@@ -309,9 +312,9 @@ def agentConfig():
                                     img.show()
                                     # Delete the screenshot
                                     os.remove("tmpImg.png")              
-                                    page.wait_for_selector(f"{newAgent_selector}", timeout=10000)
+                                    page.wait_for_selector(f"{newAgent_selector}", timeout=10000) #Wait for element to show
                                     price_element = page.locator(newAgent_selector)
-                                    price_text = price_element.text_content()
+                                    price_text = price_element.text_content() # Fetch the value 
                                     print(f"Current price: {price_text}")
                                     browser.close()
                                     db("""UPDATE scraperAgent SET webPageURL = ?, elementSelector = ? WHERE scraperID = ?;""", (newAgent_link, newAgent_selector, scraperID,))
@@ -428,7 +431,7 @@ def configure():
     except Exception as e:
         return error(e)
 
-
+# Function to start a scraper thread on request
 def automation_Thread(interval, agentID, userID):
     try:
         if agentID in running_agents:
@@ -440,6 +443,7 @@ def automation_Thread(interval, agentID, userID):
     except Exception as e:
         return error(e)
 
+# Function the does the waitng and scrape calling
 def automation_Time(interval, agentID, userID, stop_event):
     try:
         agentData = db("""SELECT webPageURL, elementSelector FROM scraperAgent WHERE scraperID = ?;""", (agentID,))
@@ -465,6 +469,7 @@ def automation_Time(interval, agentID, userID, stop_event):
     except Exception as e:
         return error(e)
 
+# The actual automation scrape function
 def automation_Scrape(link, selector):
     try:
         with playwright_lock:
@@ -482,7 +487,7 @@ def automation_Scrape(link, selector):
     except Exception as e:
         return error(e)
 
-
+# Function to send an email to user if a scraper agent has detected a change
 def automation_Email(prevVal, curVal, agentID, userID):
     try:
         if curVal != prevVal: # Check if there is a difference between the previous and current values.
