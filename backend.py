@@ -1,67 +1,88 @@
-# Essential libraries that make up the backend of the backend
-from flask import Flask, render_template, session, redirect, url_for, request, flash
-import sqlite3
-import webview
-from threading import Thread, Event
-import threading
-import os
+"""Bit Scrape backend.
 
-# Very useful libraries for the little features of the app
-from PIL import Image
+Flask application that serves the Bit Scrape UI, manages user accounts and
+scraper agents, runs background scraping threads, and emails users when a
+watched value changes.
+"""
+
 import datetime
-import sys
+import os
 import random
-
-# Libraries for sending emails
 import smtplib
+import sys
+import threading
+import sqlite3
 from email.mime.text import MIMEText
-
-# Libraries to improve the overall secureness of the app
 from functools import wraps
-from werkzeug.security import generate_password_hash, check_password_hash
+from threading import Event, Thread
+
+import webview
 from dotenv import load_dotenv
+from flask import (
+    Flask,
+    flash,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
+from invisible_playwright import InvisiblePlaywright
+from invisible_playwright import cli as ip_cli
+from PIL import Image
+from werkzeug.security import check_password_hash, generate_password_hash
 
-# Web scraper libraries
-from invisible_playwright import InvisiblePlaywright, cli as ip_cli
 
-
-
-
-
-# This function helps the .exe find the files needed for the app while it runs
 def resource_path(relative_path):
+    """Resolve a path that works both when run as a .py file and as a
+    PyInstaller-built .exe (which extracts to a temporary folder)."""
     try:
-        base_path = sys._MEIPASS # Temporary extraction folder created by the .exe on every startup
+        # Temporary extraction folder created by the .exe on every startup.
+        base_path = sys._MEIPASS  # pylint: disable=protected-access
     except AttributeError:
-        base_path = os.path.abspath(".") # File path falls back to normal when .py is run during dev
-    return os.path.join(base_path, relative_path) # Ends up joining the relative path to the base path whether the .py was run or the .exe was run
+        # File path falls back to normal when the .py is run during dev.
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
 
-# Set important global variables
-load_dotenv(resource_path('.env')) # Connect to the .env file with all the important secret values
-running_agents = {} # A dict that stores the states of each threaded agent and is used to stop threaded agents
-playwright_lock = threading.Lock() # Helps prevent agent create from failing if there is a automated scrape running at the moment of creation
-loadStatus = {}
+# Set important global variables.
+# Connect to the .env file with all the important secret values.
+load_dotenv(resource_path('.env'))
+# A dict that stores the states of each threaded agent and is used to stop
+# threaded agents.
+running_agents = {}
+# Helps prevent agent create from failing if there is an automated scrape
+# running at the moment of creation.
+playwright_lock = threading.Lock()
+load_status = {}
 
 
 app = Flask(__name__)
-# Set the flask secret app key to the the one stored secretly  or just generate a random one if the secret file cannot be found
+# Set the flask secret app key to the one stored secretly, or just generate
+# a random one if the secret file cannot be found.
 app.secret_key = os.environ.get("FLASK_SECRET_KEY") or os.urandom(24)
 
 
-# This function checks and handles the installation of the invisible palywright on another users device because pyinstaller does not package it with the .exe
 def ensure_engine_available():
-    try: # Check if the browser ius installed and works
+    """Check and, if needed, install the invisible playwright engine.
+
+    pyinstaller does not package the browser engine with the .exe, so on a
+    fresh install it has to be fetched the first time the app runs.
+    """
+    try:
+        # Check if the browser is installed and works.
         with InvisiblePlaywright() as browser:
             browser.close()
         return True
-    except Exception: # Install invisible playwright
+    except Exception:  # pylint: disable=broad-exception-caught
+        # Any failure here means the engine isn't ready yet; try to fetch
+        # it rather than crashing the app on first run.
         print("First run: downloading scraper engine, this may take a minute...")
         try:
             ip_cli.main(['fetch'])  # verify this matches the actual entry point in cli.py
             return True
-        except Exception as e:
-            print(f"Engine download failed: {e}")
+        except Exception as download_error:  # pylint: disable=broad-exception-caught
+            print(f"Engine download failed: {download_error}")
             return False
 
 
@@ -72,175 +93,210 @@ else:
 DB_PATH = os.path.join(app_dir, 'database.db')
 
 
-# The all in one database access/control function that will handle all the web apps database needs
 def db(query, params=()):
-    # Create the connection to the database file
+    """Run a query against the SQLite database and return the fetched rows.
+
+    The all-in-one database access function that handles all of the web
+    app's database needs.
+    """
+    # Create the connection to the database file.
     conn = sqlite3.connect(DB_PATH)
-    # Create the cursor which will handle queries
+    # Create the cursor which will handle queries.
     cursor = conn.cursor()
-    # Execute the query and use the parameters
+    # Execute the query and use the parameters.
     cursor.execute(query, params)
-    # Always commit changes even if there are not any
+    # Always commit changes even if there are not any.
     conn.commit()
-    # Store the data that was fetched from the database as 'results'
+    # Store the data that was fetched from the database as 'results'.
     results = cursor.fetchall()
-    # Always close connection when done with the function
+    # Always close connection when done with the function.
     conn.close()
-    # Return the data
+    # Return the data.
     return results
 
 
-# The function that verifies that users are actually logged in and not able to visit each page via their route
-def login_required(f): # f is the route function such as home or configuration
+def login_required(f):
+    """Redirect anonymous visitors to the login page before running `f`."""
     @wraps(f)
-    def decorated_function(*args, **kwargs): # Function when a user visits any of the routes and can pass on the arguments from any previous routes that call the other route
-        if 'userID' not in session: # Check if the user is actually logged in
+    def decorated_function(*args, **kwargs):
+        if 'userID' not in session:  # Check if the user is actually logged in.
             flash('Please log in to continue.')
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated_function
 
 
-@app.errorhandler(404) # Handler for flask page not found errors
-def page_not_found(e):
+@app.errorhandler(404)
+def page_not_found(_error):
+    """Render the custom 404 page for Flask's built-in error handler."""
     return render_template('404.html'), 404
 
 
-def error(errorMessage): # Error page handler
-    return render_template('error.html', errorMessage=errorMessage)
+def error(error_message):
+    """Render the generic error page with a message."""
+    return render_template('error.html', errorMessage=error_message)
 
 
 @app.route('/')
 def index():
+    """Clear any existing session and send the visitor to the login page."""
     session.clear()
     return redirect(url_for('login'))
 
 
-# Function is polled by he loading page JS amd check the loading state which is stored in the dict
 @app.route('/loadCheck')
-def loadCheck():
-    loadID = session.get('loadID')
-    nextPage = session.get('nextPage')
-    if loadStatus.get(loadID) == 'error': # If an error occured while loading then  flash an error message
+def load_check():
+    """Poll endpoint used by the loading page JS to check load progress."""
+    load_id = session.get('loadID')
+    next_page = session.get('nextPage')
+    if load_status.get(load_id) == 'error':
+        # An error occurred while loading, so flash an error message.
         flash('An error occured while trying to perform the most recent requested action.')
         return redirect(url_for('home'))
-    if loadStatus.get(loadID) is True: # If loading is complete then redirect to next page
-        return redirect(url_for(nextPage))
-    else:
-        return render_template('loadingPage.html')  # keep waiting, page refreshes itself again
+    if load_status.get(load_id) is True:
+        # Loading is complete, redirect to the next page.
+        return redirect(url_for(next_page))
+    # Keep waiting; the page refreshes itself again.
+    return render_template('loadingPage.html')
 
 
-# Must use 'POST' and 'GET' because 'GET' is required for the url redirection from index to login
+# Must use 'POST' and 'GET' because 'GET' is required for the url redirection
+# from index to login.
 @app.route('/login', methods=['GET', 'POST'])
-# The login funcion
 def login():
+    """Handle the login form and start the user's agent threads."""
     try:
         if request.method == 'POST':
-            # Fetch the data from the form and add it to session variables
-            usernameInput = request.form['username']
-            passwordInput = request.form['password']
-            # Check if the user credentials are in the database
-            userData = db("""SELECT * FROM user WHERE userName = ?;""", (usernameInput,))
-            if not userData or not check_password_hash(userData[0][2], passwordInput):
+            # Fetch the data from the form.
+            username_input = request.form['username']
+            password_input = request.form['password']
+            # Check if the user credentials are in the database.
+            user_data = db("""SELECT * FROM user WHERE userName = ?;""", (username_input,))
+            if not user_data or not check_password_hash(user_data[0][2], password_input):
                 flash('Credentials are incorrect')
                 return render_template('login.html')
-            else:
-                # If the user credentials are correct then redirect the user to home
-                session['userID'] = userData[0][0]
-                userID = userData[0][0]
-                session['nextPage'] = 'home'
-                loadStatus[userID] = False
-                session['loadID'] = random.randint(1, 100)
-                loadID = session['loadID']
-                # Display the loading page while the backend sets up the scraper agent threads
-                def loading(userID, loadID):
-                    try:
-                        userAgents = db("""SELECT scraperID, scrapeInterval FROM scraperAgent WHERE userID = ?;""", (userID,))
-                        for i in userAgents: # Go through the list of scraper agents and start a thread for each scraper agent to run in the background
-                            automation_Thread(i[1], i[0], userID)
-                        loadStatus[loadID] = True
-                    except:
-                        loadStatus[loadID] = 'error'
-                Thread(target=loading, args=(userID, loadID,), daemon=True).start()
-                return render_template('loadingPage.html')
+
+            # If the user credentials are correct then redirect the user to home.
+            session['userID'] = user_data[0][0]
+            user_id = user_data[0][0]
+            session['nextPage'] = 'home'
+            load_status[user_id] = False
+            session['loadID'] = random.randint(1, 100)
+            load_id = session['loadID']
+
+            # Display the loading page while the backend sets up the scraper agent threads.
+            def loading(user_id, load_id):
+                try:
+                    user_agents = db(
+                        """SELECT scraperID, scrapeInterval FROM scraperAgent
+                        WHERE userID = ?;""",
+                        (user_id,),
+                    )
+                    # Start a background thread for each of the user's scraper agents.
+                    for agent in user_agents:
+                        automation_thread(agent[1], agent[0], user_id)
+                    load_status[load_id] = True
+                except Exception:  # pylint: disable=broad-exception-caught
+                    load_status[load_id] = 'error'
+
+            Thread(target=loading, args=(user_id, load_id), daemon=True).start()
+            return render_template('loadingPage.html')
         return render_template('login.html')
-    except Exception as e:
-        return error(e)
+    except Exception as login_error:  # pylint: disable=broad-exception-caught
+        return error(login_error)
 
 
-@app.route('/accountCreate', methods=['POST', 'GET']) # Account creation
-def accountCreate():
+@app.route('/accountCreate', methods=['POST', 'GET'])
+def account_create():
+    """Handle account creation."""
     try:
         if request.method == 'POST':
-            # Get the credentials the the user input from the form
-            usernameInput = request.form['username']
-            passwordInput = request.form['password']
-            emailInput = request.form['email']
-            
-            # Check the length of the username and password
-            if 3 < len(usernameInput) < 20 and 3 < len(passwordInput) < 20:
-                # Check if the username or email is already in the database
-                # If the username or email is not in the database then add the user credentials
-                if not db("""SELECT * FROM user WHERE userName = ?;""", (usernameInput,)):
-                    if not db("""SELECT * FROM user WHERE userEmail = ?;""", (emailInput,)):
-                        session['loadID'] = random.randint(1, 100)
-                        loadID = session['loadID']
-                        loadStatus[loadID] = False
-                        session['nextPage'] = 'login'
+            # Get the credentials the user input from the form.
+            username_input = request.form['username']
+            password_input = request.form['password']
+            email_input = request.form['email']
 
-                        def loading(usernameInput, passwordInput, emailInput, loadID):
-                            hashedPassword = generate_password_hash(passwordInput) # Generate a password hash to keep the users password is secure
-                            db("INSERT INTO user (userName, userPassword, userEmail) VALUES (?, ?, ?);", (usernameInput, hashedPassword, emailInput))
-                            loadStatus[loadID] = True
+            # Check the length of the username and password.
+            if not 3 < len(username_input) < 20 or not 3 < len(password_input) < 20:
+                flash('The username or password is not the correct length. '
+                      '(3 to 20 characters!!!)')
+                return render_template('accountCreate.html')
 
-                        Thread(target=loading, args=(usernameInput, passwordInput, emailInput, loadID,), daemon=True).start()
-                        return render_template('loadingPage.html')
-                    else:
-                        flash('That email is already in use.')
-                        return render_template('accountCreate.html', name=usernameInput, password=passwordInput)
-                else:
-                    flash('That username is already in use.')
-                    return render_template('accountCreate.html', password=passwordInput, email=emailInput)
-            else:
-                flash('The username or password is not the correct length. (3 to 20 characters!!!)')
+            # Check if the username is already in the database.
+            if db("""SELECT * FROM user WHERE userName = ?;""", (username_input,)):
+                flash('That username is already in use.')
+                return render_template(
+                    'accountCreate.html', password=password_input, email=email_input,
+                )
+
+            # Check if the email is already in the database.
+            if db("""SELECT * FROM user WHERE userEmail = ?;""", (email_input,)):
+                flash('That email is already in use.')
+                return render_template(
+                    'accountCreate.html', name=username_input, password=password_input,
+                )
+
+            session['loadID'] = random.randint(1, 100)
+            load_id = session['loadID']
+            load_status[load_id] = False
+            session['nextPage'] = 'login'
+
+            def loading(username_input, password_input, email_input, load_id):
+                # Generate a password hash to keep the user's password secure.
+                hashed_password = generate_password_hash(password_input)
+                db(
+                    "INSERT INTO user (userName, userPassword, userEmail) VALUES (?, ?, ?);",
+                    (username_input, hashed_password, email_input),
+                )
+                load_status[load_id] = True
+
+            Thread(
+                target=loading,
+                args=(username_input, password_input, email_input, load_id),
+                daemon=True,
+            ).start()
+            return render_template('loadingPage.html')
         return render_template('accountCreate.html')
-    except Exception as e:
-        return error(e)
+    except Exception as create_error:  # pylint: disable=broad-exception-caught
+        return error(create_error)
 
 
 @app.route('/home')
 @login_required
 def home():
+    """Show all of the logged-in user's scraper agents."""
     try:
-        scraperDetails = db("""SELECT scraperName, webPageURL FROM scraperAgent WHERE userID = ?;""", (session['userID'], ))
-        agents = [
-            {
-                'name': row[0],
-                'url': row[1]
-            }
-            for row in scraperDetails
-        ]
+        scraper_details = db(
+            """SELECT scraperName, webPageURL FROM scraperAgent WHERE userID = ?;""",
+            (session['userID'],),
+        )
+        agents = [{'name': row[0], 'url': row[1]} for row in scraper_details]
         return render_template('home.html', agents=agents)
-    except Exception as e:
-        return error(e)
+    except Exception as home_error:  # pylint: disable=broad-exception-caught
+        return error(home_error)
 
 
-@app.route('/agentSelect', methods=['POST', 'GET']) # get the name of the agent that was selected and pass it on to the agent config function
+@app.route('/agentSelect', methods=['POST', 'GET'])
 @login_required
-def agentSelect():
+def agent_select():
+    """Store which agent was selected so agent_config can look it up."""
     try:
         if request.method == 'POST':
-            agentName = request.form['agentName']
-            agent = db("""SELECT scraperID FROM scraperAgent WHERE userID = ? AND scraperName = ?;""", (session['userID'], agentName,))
+            agent_name = request.form['agentName']
+            agent = db(
+                """SELECT scraperID FROM scraperAgent WHERE userID = ? AND scraperName = ?;""",
+                (session['userID'], agent_name),
+            )
             session['scraperID'] = agent[0][0]
-        return redirect(url_for('agentConfig'))
-    except Exception as e:
-        return error(e)
+        return redirect(url_for('agent_config'))
+    except Exception as select_error:  # pylint: disable=broad-exception-caught
+        return error(select_error)
 
 
 @app.route('/agentDelete', methods=['POST', 'GET'])
 @login_required
-def agentDelete():
+def agent_delete():
+    """Delete the currently selected scraper agent and its history."""
     try:
         if request.method == 'POST':
             db("""DELETE FROM scrapeData WHERE scraperID =?;""", (session['scraperID'],))
@@ -249,228 +305,365 @@ def agentDelete():
             if stop_event:
                 stop_event.set()
             return redirect(url_for('home'))
-    except Exception as e:
-        return error(e)
+        return redirect(url_for('home'))
+    except Exception as delete_error:  # pylint: disable=broad-exception-caught
+        return error(delete_error)
+
 
 @app.route('/userDelete', methods=['POST', 'GET'])
 @login_required
-def userDelete(): # User account deletion
+def user_delete():
+    """Delete the logged-in user's account, agents, and scrape history."""
     try:
         if request.method == 'POST':
-            userAgentIDs = db("""SELECT scraperID FROM scraperAgent WHERE userID = ?;""", (session['userID'],))
-            for row in userAgentIDs: # Stop users scraper agent threads when they delete their account
+            user_agent_ids = db(
+                """SELECT scraperID FROM scraperAgent WHERE userID = ?;""",
+                (session['userID'],),
+            )
+            # Stop the user's scraper agent threads when they delete their account.
+            for row in user_agent_ids:
                 stop_event = running_agents.get(row[0])
                 if stop_event:
                     stop_event.set()
-            # Delete all of the users details
+            # Delete all of the user's details.
             db("""DELETE FROM scrapeData WHERE userID = ?;""", (session['userID'],))
             db("""DELETE FROM scraperAgent WHERE userID = ?;""", (session['userID'],))
             db("""DELETE FROM user WHERE userID = ?;""", (session['userID'],))
             return redirect(url_for('index'))
-    except Exception as e:
-        return error(e)
+        return redirect(url_for('index'))
+    except Exception as user_delete_error:  # pylint: disable=broad-exception-caught
+        return error(user_delete_error)
 
-@app.route('/agentConfig', methods=['POST', 'GET']) # Function to configure a scraper agent
+
+@app.route('/agentConfig', methods=['POST', 'GET'])
 @login_required
-def agentConfig():
+def agent_config():  # pylint: disable=too-many-return-statements
+    """View and update the currently selected scraper agent's settings."""
     try:
-        agentDetails = db("""SELECT scraperName, webPageURL, elementSelector, scrapeInterval FROM scraperAgent WHERE scraperID = ?;""", (session['scraperID'],))
-        name, link, selector, interval = agentDetails[0]
-        if request.method == 'POST':
-            scraperID = session['scraperID']
-            newAgent_name = request.form['newAgent-name']
-            newAgent_link = request.form['newAgent-link']
-            newAgent_selector = request.form['newAgent-selector']
-            scrapeInterval = request.form['scrapeInterval']
-            if newAgent_name != name:
-                if len(newAgent_name) > 3 and len(newAgent_name) < 20:
-                    if not db("""SELECT * FROM scraperAgent WHERE userID = ? AND scraperName = ?;""", (session['userID'], newAgent_name,)):
-                        db("""UPDATE scraperAgent SET scraperName WHERE scraperID = ?;""", (scraperID,))
-                    else:
-                        flash('That scraper name is in use.')
-                        return render_template('agentConfig.html', name=name, link=newAgent_link, selector=newAgent_selector, interval=scrapeInterval)
-                else:
-                    flash('That scraper name is not the correct length, must be 3 to 20 characters long.')
-                    return render_template('agentConfig.html', name=name, link=newAgent_link, selector=newAgent_selector, interval=scrapeInterval)
+        agent_details = db(
+            """SELECT scraperName, webPageURL, elementSelector, scrapeInterval
+            FROM scraperAgent WHERE scraperID = ?;""",
+            (session['scraperID'],),
+        )
+        name, link, selector, interval = agent_details[0]
+        if request.method != 'POST':
+            return render_template(
+                'agentConfig.html', name=name, link=link, selector=selector, interval=interval,
+            )
 
-            if scrapeInterval != interval:
-                db("""UPDATE scraperAgent SET scrapeInterval = ? WHERE scraperID = ?;""", (scrapeInterval, scraperID,))
-            if newAgent_link != link or newAgent_selector != selector:
-                if not db("""SELECT * FROM scraperAgent WHERE userID = ? AND webPageURL = ? AND elementSelector = ?;""", (session['userID'], newAgent_link, newAgent_selector,)):
-                    session['loadID'] = random.randint(1, 100)
-                    loadID = session['loadID']
-                    loadStatus[loadID] = False
-                    session['nextPage'] = 'home'
-                    def loading(loadID, newAgent_link, newAgent_selector, scraperID,):
-                        with playwright_lock:
-                            with InvisiblePlaywright(headless=True) as browser: # Scrape website and fetch the requested value
-                                try:
-                                    page = browser.new_page()
-                                    page.goto(newAgent_link)
-                                    page.screenshot(path="tmpImg.png")
-                                    img = Image.open("tmpImg.png")
-                                    img.show()
-                                    # Delete the screenshot
-                                    os.remove("tmpImg.png")              
-                                    page.wait_for_selector(f"{newAgent_selector}", timeout=10000) #Wait for element to show
-                                    price_element = page.locator(newAgent_selector)
-                                    price_text = price_element.text_content() # Fetch the value 
-                                    print(f"Current price: {price_text}")
-                                    browser.close()
-                                    db("""UPDATE scraperAgent SET webPageURL = ?, elementSelector = ? WHERE scraperID = ?;""", (newAgent_link, newAgent_selector, scraperID,))
-                                    loadStatus[loadID] = True
-                                except:
-                                    loadStatus[loadID] = 'error'
-                    Thread(target=loading, args=(loadID, newAgent_link, newAgent_selector, scraperID), daemon=True).start()
-                    return render_template('loadingPage.html')
-                else:
-                    flash('You are already monitoring that webpage element.')
-                    return render_template('agentConfig.html', name=newAgent_name, link=link, selector=selector, interval=scrapeInterval)
-            return redirect(url_for('home'))
-        return render_template('agentConfig.html', name=name, link=link, selector=selector, interval=interval)
-    except Exception as e:
-        return error(e)
+        scraper_id = session['scraperID']
+        new_agent_name = request.form['newAgent-name']
+        new_agent_link = request.form['newAgent-link']
+        new_agent_selector = request.form['newAgent-selector']
+        scrape_interval = request.form['scrapeInterval']
+
+        if new_agent_name != name:
+            if not 3 < len(new_agent_name) < 20:
+                flash('That scraper name is not the correct length, must be 3 to 20 '
+                      'characters long.')
+                return render_template(
+                    'agentConfig.html', name=name, link=new_agent_link,
+                    selector=new_agent_selector, interval=scrape_interval,
+                )
+            if db(
+                """SELECT * FROM scraperAgent WHERE userID = ? AND scraperName = ?;""",
+                (session['userID'], new_agent_name),
+            ):
+                flash('That scraper name is in use.')
+                return render_template(
+                    'agentConfig.html', name=name, link=new_agent_link,
+                    selector=new_agent_selector, interval=scrape_interval,
+                )
+            db(
+                """UPDATE scraperAgent SET scraperName WHERE scraperID = ?;""",
+                (scraper_id,),
+            )
+
+        if scrape_interval != interval:
+            db(
+                """UPDATE scraperAgent SET scrapeInterval = ? WHERE scraperID = ?;""",
+                (scrape_interval, scraper_id),
+            )
+
+        if new_agent_link != link or new_agent_selector != selector:
+            if db(
+                """SELECT * FROM scraperAgent
+                WHERE userID = ? AND webPageURL = ? AND elementSelector = ?;""",
+                (session['userID'], new_agent_link, new_agent_selector),
+            ):
+                flash('You are already monitoring that webpage element.')
+                return render_template(
+                    'agentConfig.html', name=new_agent_name, link=link,
+                    selector=selector, interval=scrape_interval,
+                )
+
+            session['loadID'] = random.randint(1, 100)
+            load_id = session['loadID']
+            load_status[load_id] = False
+            session['nextPage'] = 'home'
+
+            def loading(load_id, new_agent_link, new_agent_selector, scraper_id):
+                with playwright_lock:
+                    # Scrape website and fetch the requested value.
+                    with InvisiblePlaywright(headless=True) as browser:
+                        try:
+                            page = browser.new_page()
+                            page.goto(new_agent_link)
+                            page.screenshot(path="tmpImg.png")
+                            img = Image.open("tmpImg.png")
+                            img.show()
+                            # Delete the screenshot.
+                            os.remove("tmpImg.png")
+                            # Wait for the element to show.
+                            page.wait_for_selector(f"{new_agent_selector}", timeout=10000)
+                            price_element = page.locator(new_agent_selector)
+                            price_text = price_element.text_content()  # Fetch the value.
+                            print(f"Current price: {price_text}")
+                            browser.close()
+                            db(
+                                """UPDATE scraperAgent SET webPageURL = ?, elementSelector = ?
+                                WHERE scraperID = ?;""",
+                                (new_agent_link, new_agent_selector, scraper_id),
+                            )
+                            load_status[load_id] = True
+                        except Exception:  # pylint: disable=broad-exception-caught
+                            load_status[load_id] = 'error'
+
+            Thread(
+                target=loading,
+                args=(load_id, new_agent_link, new_agent_selector, scraper_id),
+                daemon=True,
+            ).start()
+            return render_template('loadingPage.html')
+
+        return redirect(url_for('home'))
+    except Exception as config_error:  # pylint: disable=broad-exception-caught
+        return error(config_error)
 
 
 @app.route('/agentCreate', methods=['POST', 'GET'])
 @login_required
-def agentCreate():
+def agent_create():
+    """Create a new scraper agent and start monitoring it."""
     try:
         if request.method == 'POST':
-            agentName_input = request.form['agentName']
-            webpageLink_input = request.form['webpageLink']
-            elementSelector_input = request.form['elementSelector']
-            scrapeInterval = request.form['scrapeInterval']
-            if not db("""SELECT * FROM scraperAgent WHERE userID = ? AND scraperName = ?;""", (session['userID'], agentName_input,)):
-                if len(agentName_input) > 3 and len(agentName_input) < 20:
-                    if not db("""SELECT * FROM scraperAgent WHERE userID = ? AND webPageURL = ? AND elementSelector = ?;""", (session['userID'], webpageLink_input, elementSelector_input,)):
-                        session['loadID'] = random.randint(1, 100)
-                        loadID = session['loadID']
-                        loadStatus[loadID] = False
-                        session['nextPage'] = 'home'
-                        userID = session['userID']
-                        def loading(loadID, userID, agentName_input, webpageLink_input, elementSelector_input, scrapeInterval):
-                            with playwright_lock:
-                                with InvisiblePlaywright(headless=True) as browser:
-                                    try:
-                                        page = browser.new_page()
-                                        page.goto(webpageLink_input)                
-                                        page.wait_for_selector(f"{elementSelector_input}", timeout=10000)
-                                        # Give the screen shot a temporary name, will delete after the image is opened
-                                        page.screenshot(path="tmpImg.png")
-                                        price_element = page.locator(f"{elementSelector_input}")
-                                        price_text = price_element.text_content()
-                                        print(f"Current price: {price_text}")
-                                        browser.close()
-                                        img = Image.open("tmpImg.png")
-                                        img.show()
-                                        # Delete the screenshot
-                                        os.remove("tmpImg.png")
-                                        db("""INSERT INTO scraperAgent (userID, scraperName, webPageURL, elementSelector, scrapeInterval) VALUES (?, ?, ?, ?, ?);""", (userID, agentName_input, webpageLink_input, elementSelector_input, scrapeInterval))
-                                        agentID = db("""SELECT scraperID FROM scraperAgent WHERE userID = ? AND scraperName = ?;""", (userID, agentName_input))
-                                        agentID = agentID[0][0]
-                                        db("""INSERT INTO scrapeData (userID, scraperID, scrapeValue, scrapeTime, elementSelector) VALUES (?, ?, ?, ?, ?);""", (userID, agentID, price_text, datetime.datetime.now(), elementSelector_input))
-                                        automation_Thread(scrapeInterval, agentID, userID)
-                                        loadStatus[loadID] = True
-                                    except:
-                                        loadStatus[loadID] = 'error'
-                        Thread(target=loading, args=(loadID, userID, agentName_input, webpageLink_input, elementSelector_input, scrapeInterval), daemon=True).start()
-                        return render_template('loadingPage.html')
-                    else:
-                        flash("That webpage element is already being monitored.")
-                        return render_template('agentCreate.html', name=agentName_input, link=webpageLink_input, interval=scrapeInterval)
-                else:
-                    flash('That scraper name is not the correct length. (3 to 20 characters!!!)')
-                    return render_template('agentCreate.html', link=webpageLink_input, selector=elementSelector_input, interval=scrapeInterval)
-            else:
+            agent_name_input = request.form['agentName']
+            webpage_link_input = request.form['webpageLink']
+            element_selector_input = request.form['elementSelector']
+            scrape_interval = request.form['scrapeInterval']
+
+            if db(
+                """SELECT * FROM scraperAgent WHERE userID = ? AND scraperName = ?;""",
+                (session['userID'], agent_name_input),
+            ):
                 flash("That scraper agent name is already in use.")
-                return render_template('agentCreate.html', link=webpageLink_input, selector=elementSelector_input, interval=scrapeInterval)
+                return render_template(
+                    'agentCreate.html', link=webpage_link_input,
+                    selector=element_selector_input, interval=scrape_interval,
+                )
+
+            if not 3 < len(agent_name_input) < 20:
+                flash('That scraper name is not the correct length. (3 to 20 characters!!!)')
+                return render_template(
+                    'agentCreate.html', link=webpage_link_input,
+                    selector=element_selector_input, interval=scrape_interval,
+                )
+
+            if db(
+                """SELECT * FROM scraperAgent
+                WHERE userID = ? AND webPageURL = ? AND elementSelector = ?;""",
+                (session['userID'], webpage_link_input, element_selector_input),
+            ):
+                flash("That webpage element is already being monitored.")
+                return render_template(
+                    'agentCreate.html', name=agent_name_input, link=webpage_link_input,
+                    interval=scrape_interval,
+                )
+
+            session['loadID'] = random.randint(1, 100)
+            load_id = session['loadID']
+            load_status[load_id] = False
+            session['nextPage'] = 'home'
+            user_id = session['userID']
+
+            def loading(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+                load_id, user_id, agent_name_input, webpage_link_input,
+                element_selector_input, scrape_interval,
+            ):
+                with playwright_lock:
+                    with InvisiblePlaywright(headless=True) as browser:
+                        try:
+                            page = browser.new_page()
+                            page.goto(webpage_link_input)
+                            page.wait_for_selector(f"{element_selector_input}", timeout=10000)
+                            # Give the screenshot a temporary name; delete after it's opened.
+                            page.screenshot(path="tmpImg.png")
+                            price_element = page.locator(f"{element_selector_input}")
+                            price_text = price_element.text_content()
+                            print(f"Current price: {price_text}")
+                            browser.close()
+                            img = Image.open("tmpImg.png")
+                            img.show()
+                            # Delete the screenshot.
+                            os.remove("tmpImg.png")
+                            db(
+                                """INSERT INTO scraperAgent
+                                (userID, scraperName, webPageURL, elementSelector,
+                                scrapeInterval) VALUES (?, ?, ?, ?, ?);""",
+                                (
+                                    user_id, agent_name_input, webpage_link_input,
+                                    element_selector_input, scrape_interval,
+                                ),
+                            )
+                            agent_id = db(
+                                """SELECT scraperID FROM scraperAgent
+                                WHERE userID = ? AND scraperName = ?;""",
+                                (user_id, agent_name_input),
+                            )
+                            agent_id = agent_id[0][0]
+                            db(
+                                """INSERT INTO scrapeData
+                                (userID, scraperID, scrapeValue, scrapeTime, elementSelector)
+                                VALUES (?, ?, ?, ?, ?);""",
+                                (
+                                    user_id, agent_id, price_text,
+                                    datetime.datetime.now(), element_selector_input,
+                                ),
+                            )
+                            automation_thread(scrape_interval, agent_id, user_id)
+                            load_status[load_id] = True
+                        except Exception:  # pylint: disable=broad-exception-caught
+                            load_status[load_id] = 'error'
+
+            Thread(
+                target=loading,
+                args=(
+                    load_id, user_id, agent_name_input, webpage_link_input,
+                    element_selector_input, scrape_interval,
+                ),
+                daemon=True,
+            ).start()
+            return render_template('loadingPage.html')
         return render_template('agentCreate.html')
-    except Exception as e:
-        return error(e)
+    except Exception as create_error:  # pylint: disable=broad-exception-caught
+        return error(create_error)
 
 
 @app.route('/configure', methods=['POST', 'GET'])
 @login_required
-def configure():
+def configure():  # pylint: disable=too-many-return-statements
+    """View and update the logged-in user's account settings."""
     try:
-        userDetails = db("""SELECT userName, userEmail FROM user WHERE userID = ?;""", (session['userID'],))
-        name, email = userDetails[0]
+        user_details = db(
+            """SELECT userName, userEmail FROM user WHERE userID = ?;""",
+            (session['userID'],),
+        )
+        name, email = user_details[0]
         if request.method == 'POST':
-            newUsername = request.form['newUsername']
-            newPassword = request.form['newPassword']
-            newEmail = request.form['newEmail']
+            new_username = request.form['newUsername']
+            new_password = request.form['newPassword']
+            new_email = request.form['newEmail']
             try:
-                if newUsername != name:
-                    if len(newUsername) > 2 and len(newUsername) < 20:
-                        if not db("""SELECT * FROM user WHERE userName = ?;""", (newUsername,)):
-                            db("""UPDATE user SET userName = ? WHERE userID = ?;""", (newUsername, session['userID']))
-                        else:
-                            flash('That username is unavailable.')
-                            return render_template('configuration.html', name=name, email=newEmail)
-                    else:
-                        flash('That username is not the correct length. (3 to 20 characters!!!)')
-                        return render_template('configuration.html', name=name, email=newEmail)
-                if newPassword:
-                    if len(newPassword) > 3 and len(newPassword) < 20:
-                        hashedPassword = generate_password_hash(newPassword)
-                        db("""UPDATE user SET userPassword = ? WHERE userID = ?;""", (hashedPassword, session['userID']))
-                    else:
+                if new_username != name:
+                    if not 2 < len(new_username) < 20:
+                        flash('That username is not the correct length. '
+                              '(3 to 20 characters!!!)')
+                        return render_template('configuration.html', name=name, email=new_email)
+                    if db("""SELECT * FROM user WHERE userName = ?;""", (new_username,)):
+                        flash('That username is unavailable.')
+                        return render_template('configuration.html', name=name, email=new_email)
+                    db(
+                        """UPDATE user SET userName = ? WHERE userID = ?;""",
+                        (new_username, session['userID']),
+                    )
+                if new_password:
+                    if not 3 < len(new_password) < 20:
                         flash('That password is not the correct length. (3 to 20 chracters!!!)')
-                        return render_template('configuration.html', name=newUsername, email=newEmail)
-                if newEmail != email:
-                    if not db("""SELECT * FROM user WHERE userEmail = ?;""", (newEmail,)):
-                        db("""UPDATE user SET userEmail = ? WHERE userID = ?;""", (newEmail, session['userID']))
-                    else:
+                        return render_template(
+                            'configuration.html', name=new_username, email=new_email,
+                        )
+                    hashed_password = generate_password_hash(new_password)
+                    db(
+                        """UPDATE user SET userPassword = ? WHERE userID = ?;""",
+                        (hashed_password, session['userID']),
+                    )
+                if new_email != email:
+                    if db("""SELECT * FROM user WHERE userEmail = ?;""", (new_email,)):
                         flash('That email is unavailable.')
-                        return render_template('configuration.html', name=newUsername, email=email)
+                        return render_template(
+                            'configuration.html', name=new_username, email=email,
+                        )
+                    db(
+                        """UPDATE user SET userEmail = ? WHERE userID = ?;""",
+                        (new_email, session['userID']),
+                    )
                 return redirect(url_for('home'))
-            except Exception as e:
-                print(e)
+            except Exception as update_error:  # pylint: disable=broad-exception-caught
+                print(update_error)
         return render_template('configuration.html', name=name, email=email)
-    except Exception as e:
-        return error(e)
+    except Exception as configure_error:  # pylint: disable=broad-exception-caught
+        return error(configure_error)
 
-# Function to start a scraper thread on request
-def automation_Thread(interval, agentID, userID):
+
+def automation_thread(interval, agent_id, user_id):
+    """Start a background scraper thread for an agent, if not already running."""
     try:
-        if agentID in running_agents:
-            return  # already running, don't start a duplicate
+        if agent_id in running_agents:
+            return None  # Already running, don't start a duplicate.
         stop_event = Event()
-        running_agents[agentID] = stop_event
-        task = Thread(target=automation_Time, args=(interval, agentID, userID, stop_event), daemon=True)
+        running_agents[agent_id] = stop_event
+        task = Thread(
+            target=automation_time, args=(interval, agent_id, user_id, stop_event), daemon=True,
+        )
         task.start()
-    except Exception as e:
-        return error(e)
+    except Exception as thread_error:  # pylint: disable=broad-exception-caught
+        return error(thread_error)
+    return None
 
-# Function the does the waitng and scrape calling
-def automation_Time(interval, agentID, userID, stop_event):
+
+def automation_time(interval, agent_id, user_id, stop_event):
+    """Repeatedly scrape an agent's target element on its configured interval."""
     try:
-        agentData = db("""SELECT webPageURL, elementSelector FROM scraperAgent WHERE scraperID = ?;""", (agentID,))
-        if not agentData:
-            # Agent was deleted before this thread even got its first data — bail out cleanly
-            running_agents.pop(agentID, None)
-            return
-        link, selector = agentData[0]
-        hours = int(interval) * 3600  # Multiply the uscraper agent's set interval by 3600 seconds (1 hour)
+        agent_data = db(
+            """SELECT webPageURL, elementSelector FROM scraperAgent WHERE scraperID = ?;""",
+            (agent_id,),
+        )
+        if not agent_data:
+            # Agent was deleted before this thread even got its first data — bail out cleanly.
+            running_agents.pop(agent_id, None)
+            return None
+        link, selector = agent_data[0]
+        # Multiply the scraper agent's set interval (hours) by 3600 seconds.
+        seconds = int(interval) * 3600
 
         while not stop_event.is_set():
-            scrapeValue = automation_Scrape(link, selector)
-            prevVal = db("""SELECT scrapeValue FROM scrapeData WHERE scraperID = ? ORDER BY scrapeID DESC LIMIT 1;""", (agentID,))
-            db("""INSERT INTO scrapeData (userID, scraperID, scrapeTime, scrapeValue, elementSelector) VALUES (?, ?, ?, ?, ?);""", (userID, agentID, datetime.datetime.now(), scrapeValue, selector,))
-            if prevVal:  # guard against the very first scrape, where prevVal is empty
-                automation_Email(prevVal[0][0], scrapeValue, agentID, userID)
+            scrape_value = automation_scrape(link, selector)
+            prev_val = db(
+                """SELECT scrapeValue FROM scrapeData
+                WHERE scraperID = ? ORDER BY scrapeID DESC LIMIT 1;""",
+                (agent_id,),
+            )
+            db(
+                """INSERT INTO scrapeData
+                (userID, scraperID, scrapeTime, scrapeValue, elementSelector)
+                VALUES (?, ?, ?, ?, ?);""",
+                (user_id, agent_id, datetime.datetime.now(), scrape_value, selector),
+            )
+            if prev_val:  # Guard against the very first scrape, where prev_val is empty.
+                automation_email(prev_val[0][0], scrape_value, agent_id, user_id)
 
-            # stop_event.wait() sleeps for `hours` seconds, but returns immediately (True) if the event gets set,
-            # instead of time.sleep() which would block the full duration regardless
-            stop_event.wait(hours)
+            # stop_event.wait() sleeps for `seconds`, but returns immediately (True) if the
+            # event gets set, instead of time.sleep() which would block regardless.
+            stop_event.wait(seconds)
 
-        running_agents.pop(agentID, None)  # clean up once the loop actually exits
-    except Exception as e:
-        return error(e)
+        running_agents.pop(agent_id, None)  # Clean up once the loop actually exits.
+    except Exception as time_error:  # pylint: disable=broad-exception-caught
+        return error(time_error)
+    return None
 
-# The actual automation scrape function
-def automation_Scrape(link, selector):
+
+def automation_scrape(link, selector):
+    """Load a page with Playwright and return the text of the watched element."""
     try:
         with playwright_lock:
             with InvisiblePlaywright(headless=True) as browser:
@@ -481,74 +674,86 @@ def automation_Scrape(link, selector):
                     price_element = page.locator(selector)
                     price_text = price_element.text_content()
                     browser.close()
-                    return(price_text)
-                except Exception as e:
-                    return str(e)
-    except Exception as e:
-        return error(e)
+                    return price_text
+                except Exception as scrape_error:  # pylint: disable=broad-exception-caught
+                    return str(scrape_error)
+    except Exception as outer_scrape_error:  # pylint: disable=broad-exception-caught
+        return error(outer_scrape_error)
 
-# Function to send an email to user if a scraper agent has detected a change
-def automation_Email(prevVal, curVal, agentID, userID):
+
+def automation_email(prev_val, cur_val, agent_id, user_id):  # pylint: disable=too-many-locals
+    """Email the user if a scraper agent's watched value has changed."""
     try:
-        if curVal != prevVal: # Check if there is a difference between the previous and current values.
-            userDetails = db("""SELECT userName, userEmail FROM user WHERE userID = ?;""", (userID,))
-            username, email = userDetails[0]
-            agentDetails = db("""SELECT scraperName, webPageURL FROM scraperAgent WHERE scraperID = ?;""", (agentID,))
-            agentName, scrapeLink = agentDetails[0]
+        if cur_val == prev_val:  # No difference between the previous and current values.
+            return None
 
-            # Email account credentials
-            SENDER_EMAIL = os.environ.get("SENDER_EMAIL")
-            APP_PASSWORD = os.environ.get("APP_PASSWORD")  # Generated from Google Account > Security > App passwords
-            RECEIVER_EMAIL = email
+        user_details = db(
+            """SELECT userName, userEmail FROM user WHERE userID = ?;""", (user_id,),
+        )
+        username, email = user_details[0]
+        agent_details = db(
+            """SELECT scraperName, webPageURL FROM scraperAgent WHERE scraperID = ?;""",
+            (agent_id,),
+        )
+        agent_name, scrape_link = agent_details[0]
 
-            # Email content
-            subject = f"Agent-{agentName} detected a change"
-            body = (
-                f"Hello {username}, \n\n"
-                f"Agent-{agentName} detected a change from {scrapeLink}.\n\n"
-                f"Previous value = {prevVal}.\n"
-                f"Current value = {curVal}.\n"
-            )
+        # Email account credentials.
+        sender_email = os.environ.get("SENDER_EMAIL")
+        # Generated from Google Account > Security > App passwords.
+        app_password = os.environ.get("APP_PASSWORD")
+        receiver_email = email
 
-            # Create MIMEText object
-            msg = MIMEText(body)
-            msg["Subject"] = subject
-            msg["From"] = SENDER_EMAIL
-            msg["To"] = RECEIVER_EMAIL
+        # Email content.
+        subject = f"Agent-{agent_name} detected a change"
+        body = (
+            f"Hello {username}, \n\n"
+            f"Agent-{agent_name} detected a change from {scrape_link}.\n\n"
+            f"Previous value = {prev_val}.\n"
+            f"Current value = {cur_val}.\n"
+        )
 
-            try:
-                # Connect to Gmail's SMTP server
-                with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-                    server.login(SENDER_EMAIL, APP_PASSWORD)
-                    server.send_message(msg)
-                print("Email sent successfully!")
-            except Exception as e:
-                print(f"Error: {e}")
-    except Exception as e:
-        return error(e)
-        
+        # Create MIMEText object.
+        msg = MIMEText(body)
+        msg["Subject"] = subject
+        msg["From"] = sender_email
+        msg["To"] = receiver_email
+
+        try:
+            # Connect to Gmail's SMTP server.
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+                server.login(sender_email, app_password)
+                server.send_message(msg)
+            print("Email sent successfully!")
+        except Exception as send_error:  # pylint: disable=broad-exception-caught
+            print(f"Error: {send_error}")
+    except Exception as email_error:  # pylint: disable=broad-exception-caught
+        return error(email_error)
+    return None
+
 
 def run_flask():
+    """Run the Flask app on port 8000."""
     app.run(port=8000)
 
 
 if __name__ == '__main__':
-    # Create the variable 't' so the flask app runs on a seperate thread
+    # Create the thread 't' so the flask app runs on a separate thread.
     t = Thread(target=run_flask)
-    # Set 't.daemon' to true so that when the webview window is closed then the flask app is ended too
+    # Set 't.daemon' to true so that when the webview window is closed then the flask app
+    # is ended too.
     t.daemon = True
-    # Start the flask app in the background and then the code beneath this can run at the same time
+    # Start the flask app in the background; the code beneath this can run at the same time.
     t.start()
 
-    # Define the webview configuration
+    # Define the webview configuration.
     window = webview.create_window(
         'Bit Scrape',
         'http://127.0.0.1:8000',
-        # Set the fixed size for the application window
+        # Set the fixed size for the application window.
         width=400,
         height=580,
-        # Set resizable to false so that the window can not be resized at all
-        resizable=False
+        # Set resizable to false so that the window can not be resized at all.
+        resizable=False,
     )
+    # Start the application window.
     webview.start(icon=resource_path('static/images/BitScrapeLogo.ico'), gui='edgechromium')
-    # Start the application window

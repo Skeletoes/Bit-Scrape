@@ -18,11 +18,11 @@
 
 <script>
   function checkStatus() {
-    fetch("{{ url_for('loadCheck') }}", { redirect: 'manual' })
+    fetch("{{ url_for('load_check') }}", { redirect: 'manual' })
       .then(res => {
         // 'opaqueredirect' means loadCheck issued a redirect() — meaning the task is done
         if (res.type === 'opaqueredirect' || res.status === 302) {
-          window.location.href = "{{ url_for('loadCheck') }}";
+          window.location.href = "{{ url_for('load_check') }}";
         } else {
           setTimeout(checkStatus, 2000);
         }
