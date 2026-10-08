@@ -375,8 +375,8 @@ def agent_config():  # pylint: disable=too-many-return-statements
                     selector=new_agent_selector, interval=scrape_interval,
                 )
             db(
-                """UPDATE scraperAgent SET scraperName WHERE scraperID = ?;""",
-                (scraper_id,),
+                """UPDATE scraperAgent SET scraperName = ? WHERE scraperID = ?;""",
+                (new_agent_name, scraper_id),
             )
 
         if scrape_interval != interval:
